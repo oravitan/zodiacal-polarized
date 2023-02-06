@@ -1,7 +1,7 @@
 import numpy as np
 
 from mie_scattering.scattering_model import calculate_S1S2
-from mie_scattering.solar_irradiance_model import wl_spectrum, get_solar_irradiance, get_solar_probability_density, get_dirbe_solar_irradiance
+from mie_scattering.solar_irradiance_model import get_wl_spectrum, get_solar_irradiance, get_solar_probability_density, get_dirbe_solar_irradiance
 from mie_scattering.particle_size_model import get_particle_size_model
 from mie_scattering.plotting import plot_total_intensities, plot_polarizations, plot_intensity_polarization, \
     plot_mueller_matrix_elems
@@ -10,10 +10,10 @@ from utils.constants import m_graphite, m_silicate, prc_graphite, prc_silicate
 
 if __name__ == '__main__':
     # get the particle size model
-    s, n_norm = get_particle_size_model()  # particle size in nm, normalized probability density
+    s, n_norm = get_particle_size_model(s_res=400)  # particle size in nm, normalized probability density
 
     # get the solar irradiance spectrum model
-    spectrum = wl_spectrum.to('nm').value  # wavelength in nm
+    spectrum = get_wl_spectrum(n_samples=20).to('nm').value  # wavelength in nm
     solar_irradiance = get_solar_irradiance(spectrum)  # solar irradiance in MJy/sr
     # spectrum, solar_irradiance = get_dirbe_solar_irradiance()  # solar irradiance in MJy/sr
     solar_probability_density = get_solar_probability_density(solar_irradiance, spectrum)  # solar probability density in MJy/sr/nm

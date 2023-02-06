@@ -24,10 +24,13 @@ def plot_total_intensities(scat_functions, theta) -> None:
     ax1.grid(True, which="both")
     ax2.grid(True, which="both")
     ax3.grid(True, which="both")
-    ax1.legend()
-    ax2.legend()
-    ax3.legend()
+    # ax1.legend()
+    # ax2.legend()
+    # ax3.legend()
+    handles, labels = ax3.get_legend_handles_labels()
+    fig1.legend(handles, labels, loc='lower center', ncol=3)
     fig1.tight_layout(pad=2.0)
+    fig1.subplots_adjust(bottom=0.35)
     plt.show()
 
 
@@ -46,7 +49,9 @@ def plot_polarizations(scat_functions, theta) -> None:
     ax1.set_xlabel(r"Scattering Angle (deg)")
     ax1.set_ylabel(r"Polarization (%)")
     plt.grid()
-    plt.legend()
+    handles, labels = ax1.get_legend_handles_labels()
+    fig2.legend(handles, labels, loc='center right', ncol=1)
+    fig2.subplots_adjust(right=0.85)
     plt.show()
 
 

@@ -6,8 +6,17 @@ from zodipy import Zodipy
 from utils.math import normalize
 
 
-wl_spectrum = np.logspace(np.log10(300), np.log10(700), 10) * u.nm  # white light wavelength in nm
 cobe_factor = 6.073e-5  # COBE irradiance factor
+
+
+def get_wl_spectrum(n_samples: int = 10) -> u.Quantity:
+    """
+    Get the white light spectrum.
+    :param n_samples: number of samples
+    :return: wavelength in nm
+    """
+    wl_spectrum = np.logspace(np.log10(300), np.log10(700), n_samples) * u.nm  # white light wavelength in nm
+    return wl_spectrum
 
 
 def get_solar_irradiance(spectrum: np.ndarray) -> np.ndarray:
@@ -44,7 +53,7 @@ def get_dirbe_solar_irradiance() -> (np.ndarray, np.ndarray):
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt  # import here to avoid unnecessary import
-    spectrum = wl_spectrum.to('nm').value  # wavelength in nm
+    spectrum = get_wl_spectrum(10).to('nm').value  # wavelength in nm
     solar_irradiance = get_solar_irradiance(spectrum)  # solar irradiance in MJy/sr
     # spectrum, solar_irradiance = get_dirbe_solar_irradiance()
     solar_probability_density = get_solar_probability_density(solar_irradiance, spectrum)
