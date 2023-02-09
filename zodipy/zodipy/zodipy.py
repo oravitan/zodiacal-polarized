@@ -22,6 +22,8 @@ from zodipy._unit_vectors import get_unit_vectors_from_ang, get_unit_vectors_fro
 from zodipy._validators import get_validated_ang, get_validated_pix
 from zodipy.model_registry import model_registry
 
+from mie_scattering.mie_scattering_model import get_rotation_mueller_matrix
+
 if TYPE_CHECKING:
     import numpy.typing as npt
     from astropy.time import Time
@@ -263,6 +265,8 @@ class Zodipy:
         lonlat: bool = False,
         return_comps: bool = False,
         coord_in: Literal["E", "G", "C"] = "E",
+        polarization_angle: float | list | np.ndarray = 0.0,
+        polarizance: float = 0.5
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated binned zodiacal emission given angles on the sky.
 
@@ -324,6 +328,8 @@ class Zodipy:
             pixels=unique_pixels,
             nside=nside,
             return_comps=return_comps,
+            polarization_angle=polarization_angle,
+            polarizance=polarizance
         )
 
     def get_binned_emission_pix(
@@ -337,6 +343,8 @@ class Zodipy:
         weights: Sequence[float] | npt.NDArray[np.floating] | None = None,
         return_comps: bool = False,
         coord_in: Literal["E", "G", "C"] = "E",
+        polarization_angle: float | list | np.ndarray = 0.0,
+        polarizance: float = 0.5
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated binned zodiacal Emission given pixel numbers.
 
@@ -387,6 +395,8 @@ class Zodipy:
             pixels=unique_pixels,
             nside=nside,
             return_comps=return_comps,
+            polarization_angle=polarization_angle,
+            polarizance=polarizance,
         )
 
     def _compute_emission(
@@ -402,6 +412,8 @@ class Zodipy:
         pixels: npt.NDArray[np.int64] | None = None,
         nside: int | None = None,
         return_comps: bool = False,
+        polarization_angle: float | list | np.ndarray = 0.0,
+        polarizance: float = 0.5,
     ) -> u.Quantity[u.MJy / u.sr]:
         """Compute the component-wise zodiacal emission."""
         bandpass = validate_and_get_bandpass(
@@ -449,7 +461,7 @@ class Zodipy:
 
             unit_vector_chunks = np.array_split(unit_vectors, n_proc, axis=-1)
             integrated_comp_emission = np.zeros(
-                (len(self._ipd_model.comps), unit_vectors.shape[1])
+                (len(self._ipd_model.comps), unit_vectors.shape[1], 4)
             )
             with multiprocessing.get_context(SYS_PROC_START_METHOD).Pool(
                 processes=n_proc
@@ -487,12 +499,12 @@ class Zodipy:
                     integrated_comp_emission[idx] += (
                         np.concatenate([result.get() for result in proc_chunks])
                         * 0.5
-                        * (stop[comp_label] - start[comp_label])
+                        * (stop[comp_label] - start[comp_label])[..., None]
                     )
 
         else:
             integrated_comp_emission = np.zeros(
-                (len(self._ipd_model.comps), unit_vectors.shape[1])
+                (len(self._ipd_model.comps), unit_vectors.shape[1], 4)
             )
             unit_vectors_expanded = np.expand_dims(unit_vectors, axis=-1)
 
@@ -511,13 +523,14 @@ class Zodipy:
                         comp_integrand, *self._gauss_points_and_weights
                     )
                     * 0.5
-                    * (stop[comp_label] - start[comp_label])
+                    * (stop[comp_label] - start[comp_label])[..., None]
                 )
 
         emission = np.zeros(
             (
                 len(self._ipd_model.comps),
                 hp.nside2npix(nside) if binned else indicies.size,
+                4,
             )
         )
         if binned:
@@ -534,8 +547,10 @@ class Zodipy:
                 emission[:, solar_mask[indicies]] = self.solar_cut_fill_value
 
         emission = (emission << SPECIFIC_INTENSITY_UNITS).to(u.MJy / u.sr)
-
-        return emission if return_comps else emission.sum(axis=0)
+        polarization_angle = np.array(polarization_angle)
+        simulated_emission = 0.5 * (emission[..., 0][..., None] + polarizance * np.cos(2 * polarization_angle[None, None, ...]) * emission[..., 1][..., None] +
+                    polarizance * np.sin(2 * polarization_angle[None, None, ...]) * emission[..., 2][..., None])
+        return simulated_emission if return_comps else simulated_emission.sum(axis=0)
 
     def __repr__(self) -> str:
         repr_str = f"{self.__class__.__name__}("
