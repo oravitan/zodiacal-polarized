@@ -2,19 +2,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_total_intensities(scat_functions, theta) -> None:
+def plot_total_intensities(mie_scatt_wavelength: dict) -> None:
     """
     Plot the scattering functions as a function of the scattering angle
     :param scat_functions: list of scattering functions of different wavelengths
     :param theta: scattering angle
     """
     fig1, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12, 6))
-    for scat in scat_functions:
-        SL, SR = np.real(scat['S1'].conj() * scat['S1']), np.real(scat['S2'].conj() * scat['S2'])
-        SU = (SL + SR) / 2
-        ax1.semilogy(theta, SL, lw=2, label=f"$\lambda={round(scat['w'])} nm$")
-        ax2.semilogy(theta, SR, lw=2, label=f"$\lambda={round(scat['w'])} nm$")
-        ax3.semilogy(theta, SU, lw=2, label=f"$\lambda={round(scat['w'])} nm$")
+    for w in mie_scatt_wavelength:
+        scat = mie_scatt_wavelength[w]
+        SL, SR, SU = scat.SL, scat.SR, scat.SU
+        ax1.semilogy(scat.theta, SL, lw=2, label=f"$\lambda={round(w)} nm$")
+        ax2.semilogy(scat.theta, SR, lw=2, label=f"$\lambda={round(w)} nm$")
+        ax3.semilogy(scat.theta, SU, lw=2, label=f"$\lambda={round(w)} nm$")
     ax1.set_xlabel(r"Scattering Angle (deg)")
     ax1.set_ylabel(r"Parallel Intensity")
     ax2.set_xlabel(r"Scattering Angle (deg)")
@@ -24,9 +24,6 @@ def plot_total_intensities(scat_functions, theta) -> None:
     ax1.grid(True, which="both")
     ax2.grid(True, which="both")
     ax3.grid(True, which="both")
-    # ax1.legend()
-    # ax2.legend()
-    # ax3.legend()
     handles, labels = ax3.get_legend_handles_labels()
     fig1.legend(handles, labels, loc='lower center', ncol=3)
     fig1.tight_layout(pad=2.0)
@@ -34,7 +31,7 @@ def plot_total_intensities(scat_functions, theta) -> None:
     plt.show()
 
 
-def plot_polarizations(scat_functions, theta) -> None:
+def plot_polarizations(mie_scatt_wavelength) -> None:
     """
     Plot the polarization as a function of the scattering angle
     :param scat_functions: list of scattering functions of different wavelengths
@@ -42,10 +39,9 @@ def plot_polarizations(scat_functions, theta) -> None:
     """
     fig2 = plt.figure(figsize=(10, 6))
     ax1 = fig2.add_subplot(1, 1, 1)
-    for scat in scat_functions:
-        SL, SR = np.real(scat['S1'].conj() * scat['S1']), np.real(scat['S2'].conj() * scat['S2'])
-        P = (SL - SR) / (SL + SR)
-        ax1.plot(theta, P, lw=2, label=f"$\lambda={round(scat['w'])} nm$")
+    for w in mie_scatt_wavelength:
+        scat = mie_scatt_wavelength[w]
+        ax1.plot(scat.theta, scat.P, lw=2, label=f"$\lambda={round(w)} nm$")
     ax1.set_xlabel(r"Scattering Angle (deg)")
     ax1.set_ylabel(r"Polarization (%)")
     plt.grid()
