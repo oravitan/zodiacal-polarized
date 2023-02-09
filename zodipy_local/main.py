@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.time import Time
 
-from zodipy.zodipy import Zodipy
+from zodipy_local.zodipy import Zodipy
 
 
 if __name__ == '__main__':
@@ -39,6 +39,6 @@ if __name__ == '__main__':
             min=0,
             max=1,
             cmap="afmhot",
-            rot=(0, 90, 0)
+            rot=(0, 0, 0)
         )
         plt.show()
