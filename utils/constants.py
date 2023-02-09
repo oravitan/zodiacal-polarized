@@ -4,3 +4,5 @@ m_silicate = 1.62 + 0.003j  # refractive index of silicate
 
 prc_graphite = 0.6
 prc_silicate = 0.4
+
+refractive_ind = {m_graphite: prc_graphite, m_silicate: prc_silicate}
