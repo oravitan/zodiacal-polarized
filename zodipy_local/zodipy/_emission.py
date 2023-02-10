@@ -12,8 +12,8 @@ from zodipy._source_funcs import (
     get_scattering_angle,
 )
 
-from mie_scattering.mie_scattering_model import get_mie_scattering_mueller_matrix, get_unpolarized_stokes_vector, \
-    get_rotation_mueller_matrix
+from mie_scattering.mueller_matrices import get_unpolarized_stokes_vector, get_rotation_mueller_matrix
+from mie_scattering.mie_scattering_model import MieScatteringModel
 
 if TYPE_CHECKING:
 
@@ -24,6 +24,7 @@ Function that return the zodiacal emission at a step along all lines of sight gi
 a zodiacal model.
 """
 GetCompEmissionAtStepFn = Callable[..., npt.NDArray[np.float64]]
+
 
 
 def kelsall(
@@ -40,6 +41,7 @@ def kelsall(
     phase_coefficients: tuple[float, ...],
     solar_irradiance: np.float64,
     bp_interpolation_table: npt.NDArray[np.float64],
+    mie_scattering_model: MieScatteringModel,
 ) -> npt.NDArray[np.float64]:
     """Kelsall uses common line of sight grid from obs to 5.2 AU."""
     # Convert the quadrature range from [-1, 1] to the true ecliptic positions
@@ -53,14 +55,14 @@ def kelsall(
     emission = (1 - albedo) * (emissivity * blackbody_emission)
 
     unpolarized_stokes = get_unpolarized_stokes_vector()
-    emission = np.einsum('ij,kwj->ikw', emission, unpolarized_stokes)
+    emission = np.einsum('ij,jkw->ikw', emission, unpolarized_stokes)
 
     if albedo != 0:
         solar_flux = solar_irradiance / R_helio**2
         scattering_angle = get_scattering_angle(R_los, R_helio, X_los, X_helio)
-        # phase_function = get_phase_function(scattering_angle, phase_coefficients)
-        scattering_emission = get_mie_scattering_mueller_matrix(scattering_angle.squeeze())
-        scattering_intensity = np.einsum('ijk,kw->ijw', np.moveaxis(scattering_emission, -1, 0), unpolarized_stokes[..., 0])
+
+        scattering_emission = mie_scattering_model.get_mueller_matrix(scattering_angle.squeeze())
+        scattering_intensity = np.einsum('ijk,kw->ijw', scattering_emission, unpolarized_stokes[0, ...])
         emission += albedo * solar_flux[..., None] * scattering_intensity
     emission_density = emission * get_density_function(X_helio)[..., None]
 
@@ -72,7 +74,7 @@ def kelsall(
     x, y, z = B[0, :, 0], B[1, :, 0], B[2, :, 0]
     theta_scat = np.arctan2((x ** 2 + y ** 2) ** 0.5, z)
     camera_rotation_mueller = get_rotation_mueller_matrix(theta_scat)
-    emission_rotated = np.einsum('kij,kjl->kil', np.moveaxis(camera_rotation_mueller, -1, 0), emission_density)
+    emission_rotated = np.einsum('ijk,ikl->ij', camera_rotation_mueller, emission_density)
     return emission_rotated
 
 

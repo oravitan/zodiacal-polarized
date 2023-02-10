@@ -8,16 +8,16 @@ from zodipy_local.zodipy import Zodipy
 
 
 if __name__ == '__main__':
-    model = Zodipy("dirbe", solar_cut=30 * u.deg, extrapolate=False, parallel=True)  # Initialize the model
+    model = Zodipy("dirbe", solar_cut=30 * u.deg, extrapolate=True, parallel=True)  # Initialize the model
     nside = 256  # Healpix resolution
     # wavelength = 0.7 * u.um  # Wavelength of the observation
-    wavelength = 1.3 * u.um  # Wavelength of the observation
+    wavelength = 1.25 * u.um  # Wavelength of the observation
     frequency = wavelength.to(u.THz, equivalencies=u.spectral())  # Frequency of the observation
 
     print("Frequency: ", frequency, "Wavelength: ", wavelength)
 
     polarizance = 1  # Polarizance of the observation
-    polarization_angle = [0.0, np.pi / 4, np.pi / 2, 3 * np.pi / 4]  # Polarization angle of the observation
+    polarization_angle = np.linspace(0, np.pi, 4, endpoint=False)  # Polarization angle of the observation
 
     # Calculate the emission at pixels
     binned_emission = model.get_binned_emission_pix(
@@ -41,4 +41,5 @@ if __name__ == '__main__':
             cmap="afmhot",
             rot=(0, 0, 0)
         )
+        hp.graticule()
         plt.show()

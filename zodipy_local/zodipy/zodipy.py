@@ -22,7 +22,7 @@ from zodipy._unit_vectors import get_unit_vectors_from_ang, get_unit_vectors_fro
 from zodipy._validators import get_validated_ang, get_validated_pix
 from zodipy.model_registry import model_registry
 
-from mie_scattering.mie_scattering_model import get_rotation_mueller_matrix
+from mie_scattering.mie_scattering_model import MieScatteringModel
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -266,7 +266,8 @@ class Zodipy:
         return_comps: bool = False,
         coord_in: Literal["E", "G", "C"] = "E",
         polarization_angle: float | list | np.ndarray = 0.0,
-        polarizance: float = 0.5
+        polarizance: float = 0.5,
+        mie_scattering_model: MieScatteringModel = None
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated binned zodiacal emission given angles on the sky.
 
@@ -329,7 +330,8 @@ class Zodipy:
             nside=nside,
             return_comps=return_comps,
             polarization_angle=polarization_angle,
-            polarizance=polarizance
+            polarizance=polarizance,
+            mie_scattering_model=mie_scattering_model
         )
 
     def get_binned_emission_pix(
@@ -344,7 +346,8 @@ class Zodipy:
         return_comps: bool = False,
         coord_in: Literal["E", "G", "C"] = "E",
         polarization_angle: float | list | np.ndarray = 0.0,
-        polarizance: float = 0.5
+        polarizance: float = 0.5,
+        mie_scattering_model: MieScatteringModel = None,
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated binned zodiacal Emission given pixel numbers.
 
@@ -397,6 +400,7 @@ class Zodipy:
             return_comps=return_comps,
             polarization_angle=polarization_angle,
             polarizance=polarizance,
+            mie_scattering_model=mie_scattering_model
         )
 
     def _compute_emission(
@@ -414,6 +418,7 @@ class Zodipy:
         return_comps: bool = False,
         polarization_angle: float | list | np.ndarray = 0.0,
         polarizance: float = 0.5,
+        mie_scattering_model: MieScatteringModel = None
     ) -> u.Quantity[u.MJy / u.sr]:
         """Compute the component-wise zodiacal emission."""
         bandpass = validate_and_get_bandpass(
@@ -422,6 +427,10 @@ class Zodipy:
             model=self._ipd_model,
             extrapolate=self.extrapolate,
         )
+
+        if mie_scattering_model is None:
+            wavelength = freq.to(u.nm, equivalencies=u.spectral()).value
+            mie_scattering_model = MieScatteringModel(wavelength)
 
         # Get model parameters, some of which have been interpolated to the given
         # frequency or bandpass.
@@ -453,6 +462,7 @@ class Zodipy:
             EMISSION_MAPPING[type(self._ipd_model)],
             X_obs=observer_position,
             bp_interpolation_table=bandpass_interpolatation_table,
+            mie_scattering_model=mie_scattering_model,
             **source_parameters["common"],
         )
 
