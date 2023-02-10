@@ -1,18 +1,26 @@
 import numpy as np
 from multiprocessing import Pool
-from PyMieScatt import MieS1S2, MieQ
+from PyMieScatt import MieS1S2
+from functools import cache
 
 from mie_scattering.plotting import plot_mueller_matrix_elems, plot_intensity_polarization
 from mie_scattering.particle_size_model import ParticleSizeModel
+from mie_scattering.solar_irradiance_model import SolarIrradianceModel
 from utils.constants import refractive_ind
+from utils.math import normalize
 
 
 class MieScatteringModel:
-    def __init__(self, wavelength, refractive_index_dict=None, particle_size: ParticleSizeModel = None, theta_res=361):
+    def __init__(self, wavelength, refractive_index_dict=None, particle_size: ParticleSizeModel = None, theta_res=361,
+                 wavelength_weight=None):
         if refractive_index_dict is None:
             refractive_index_dict = refractive_ind
         if particle_size is None:
             particle_size = ParticleSizeModel()
+        wavelength = np.array(wavelength)  # wavelength in um
+        if wavelength_weight is None:
+            wavelength_weight = self._get_black_body_weights(wavelength)
+
         self.refractive_index = list(refractive_index_dict.keys())
         self.refractive_index_weight = np.array(list(refractive_index_dict.values()))
 
@@ -22,7 +30,9 @@ class MieScatteringModel:
         self.theta = np.linspace(0, np.pi, theta_res)  # scattering angle in rad
         self.mu = np.cos(self.theta)  # cosine of scattering angle
 
-        self.x = np.pi * self.particle_size.particle_size / wavelength
+        self.x = np.pi * self.particle_size.particle_size[..., None] / wavelength[None, ...]  # Mie parameter
+        self.x_weights = normalize(particle_size.particle_likelihood[..., None] * wavelength_weight[None, ...])  # Mie parameter weights
+
         self.S1, self.S2 = self._calculate_S1S2()
 
         self.SL, self.SR, self.SU = self._calculate_SLSRSU(self.S1, self.S2)
@@ -91,9 +101,9 @@ class MieScatteringModel:
         Calculate the scattering function for a given particle size distribution, spectrum, and scattering angle.
         :return: scattering function (size param x cos scattering angle x refractive index x S1/S2)
         """
-        S1, S2 = self._get_scattering_function(self.refractive_index, self.x, self.mu)
-        S1_avg = np.sum((S1 * self.refractive_index_weight).sum(axis=-1) * self.particle_size.particle_likelihood[..., None], axis=0)
-        S2_avg = np.sum((S2 * self.refractive_index_weight).sum(axis=-1) * self.particle_size.particle_likelihood[..., None], axis=0)
+        S1, S2 = self._get_scattering_function(self.refractive_index, self.x.ravel(), self.mu)
+        S1_avg = np.sum((S1 * self.refractive_index_weight).sum(axis=-1) * self.x_weights.ravel()[..., None], axis=0)
+        S2_avg = np.sum((S2 * self.refractive_index_weight).sum(axis=-1) * self.x_weights.ravel()[..., None], axis=0)
         return S1_avg, S2_avg
 
     @staticmethod
@@ -110,6 +120,15 @@ class MieScatteringModel:
             scatt = p.starmap(MieS1S2, [(mm, x, mu) for x in x_list for mu in mu_list for mm in m])
         scatt_resh = np.array(scatt).reshape((len(x_list), len(mu_list), len(m), 2))
         return scatt_resh[..., 0], scatt_resh[..., 1]  # S1, S2
+
+    def _get_black_body_weights(self, wavelength) -> np.ndarray:
+        """
+        Get the black body weights for the given wavelength
+        :param wavelength: wavelength in nm
+        :return: black body weights
+        """
+        solar_weights = SolarIrradianceModel._get_solar_irradiance(wavelength)
+        return normalize(solar_weights)
 
 
 if __name__ == '__main__':
