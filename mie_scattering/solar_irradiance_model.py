@@ -15,7 +15,7 @@ class SolarIrradianceModel:
         :param spectrum: wavelength in nm
         :param n_samples: number of samples
         """
-        self.spectrum = spectrum  # wavelength in nm
+        self.spectrum = spectrum.to('nm').value  # wavelength in nm
         if spectrum is None:
             self.spectrum = self._get_wl_spectrum(n_samples).to('nm').value  # wavelength in nm
         self.solar_irradiance = self._get_solar_irradiance(self.spectrum)  # solar irradiance in MJy/sr

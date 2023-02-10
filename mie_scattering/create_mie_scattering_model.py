@@ -1,4 +1,5 @@
 import numpy as np
+import astropy.units as u
 
 from mie_scattering.mie_scattering_model import MieScatteringModel
 from mie_scattering.solar_irradiance_model import SolarIrradianceModel
@@ -10,12 +11,13 @@ from utils.constants import refractive_ind
 
 if __name__ == '__main__':
     # get the particle size model
+    spectrum = np.logspace(np.log10(3000), np.log10(4000), 10) * u.nm  # white light wavelength in nm
     psm = ParticleSizeModel()  # particle size model
-    sim = SolarIrradianceModel()  # solar irradiance model
+    sim = SolarIrradianceModel(spectrum=spectrum)  # solar irradiance model
 
     mie_scatt_wavelength = {}
     for w in sim.spectrum:
-        mie_scatt_wavelength[w] = MieScatteringModel(refractive_ind, psm, w)
+        mie_scatt_wavelength[w] = MieScatteringModel(w, refractive_ind, psm)
 
     # plot to total intensities
     plot_total_intensities(mie_scatt_wavelength)
@@ -41,6 +43,9 @@ if __name__ == '__main__':
     S12 = 0.5 * (np.real(S2_all.conj() * S2_all) - np.real(S1_all.conj() * S1_all))
     S33 = np.real(0.5 * (S2_all.conj() * S1_all + S1_all.conj() * S2_all))
     S34 = np.real(1j * 0.5 * (S2_all.conj() * S1_all - S1_all.conj() * S2_all))
+
+    cross_section_norm = np.trapz(S11, theta) / (np.pi)
+    S11, S12, S33, S34 = (s / cross_section_norm for s in (S11, S12, S33, S34))
 
     # Plot the Mueller matrix elements
     plot_mueller_matrix_elems(theta, S11, S12, S33, S34)
