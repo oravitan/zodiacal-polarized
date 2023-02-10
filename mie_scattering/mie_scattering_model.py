@@ -1,6 +1,6 @@
 import numpy as np
 from multiprocessing import Pool
-from PyMieScatt import MieS1S2
+from PyMieScatt import MieS1S2, MieQ
 
 from mie_scattering.plotting import plot_mueller_matrix_elems, plot_intensity_polarization
 from mie_scattering.particle_size_model import ParticleSizeModel
@@ -8,7 +8,11 @@ from utils.constants import refractive_ind
 
 
 class MieScatteringModel:
-    def __init__(self, refractive_index_dict, particle_size: ParticleSizeModel, wavelength, theta_res=361):
+    def __init__(self, wavelength, refractive_index_dict=None, particle_size: ParticleSizeModel = None, theta_res=361):
+        if refractive_index_dict is None:
+            refractive_index_dict = refractive_ind
+        if particle_size is None:
+            particle_size = ParticleSizeModel()
         self.refractive_index = list(refractive_index_dict.keys())
         self.refractive_index_weight = np.array(list(refractive_index_dict.values()))
 
@@ -25,8 +29,15 @@ class MieScatteringModel:
         self.P = (self.SL - self.SR) / (self.SL + self.SR)
         self.S11, self.S12, self.S33, self.S34 = self._calculate_mueller_elems(self.S1, self.S2)
 
+    def get_mueller_matrix(self, theta):
+        S11, S12, S33, S34 = self.get_mie_scattering_mueller_elem(theta)
+        return self.get_mueller_matrix_from_elem(S11, S12, S33, S34)
+
     @staticmethod
-    def get_mueller_matrix_from_elem(S11: np.ndarray, S12: np.ndarray, S33: np.ndarray, S34: np.ndarray):
+    def get_cross_section_norm(theta: np.ndarray, S11: np.ndarray):
+        return np.trapz(S11, theta) / np.pi
+
+    def get_mueller_matrix_from_elem(self, S11: np.ndarray, S12: np.ndarray, S33: np.ndarray, S34: np.ndarray):
         """
         Get the Mueller matrix
         :param S11: S11 element
@@ -36,6 +47,7 @@ class MieScatteringModel:
         :return: Mueller matrix
         """
         assert len(S11) == len(S12) == len(S33) == len(S34), 'S11, S12, S33, S34 must have the same length'
+        cross_section_norm = self.get_cross_section_norm(self.theta, self.S11)
         M = np.zeros((len(S11), 4, 4), dtype=np.float64)
         M[:, 0, 0] = S11
         M[:, 0, 1] = S12
@@ -46,6 +58,7 @@ class MieScatteringModel:
         M[:, 2, 3] = -S34
         M[:, 3, 2] = S34
         M[:, 3, 3] = S33
+        M /= cross_section_norm
         return M
 
     def get_mie_scattering_mueller_elem(self, theta: np.ndarray):
@@ -67,10 +80,10 @@ class MieScatteringModel:
         return SL, SR, SU
 
     def _calculate_mueller_elems(self, S1, S2):
-        S11 = 0.5 * (np.real(S2.conj() * S2) + np.real(S1.conj() * S1))
-        S12 = 0.5 * (np.real(S2.conj() * S2) - np.real(S1.conj() * S1))
-        S33 = np.real(0.5 * (S2.conj() * S1 + S1.conj() * S2))
-        S34 = np.real(1j * 0.5 * (S2.conj() * S1 - S1.conj() * S2))
+        S11 = 0.5 * (np.abs(S2) ** 2 + np.abs(S1) ** 2).real
+        S12 = 0.5 * (np.abs(S2) ** 2 - np.abs(S1) ** 2).real
+        S33 = 0.5 * (np.conjugate(S2) * S1 + S2 * np.conjugate(S1)).real
+        S34 = (0.5j * (S1 * np.conjugate(S2) - S2 * np.conjugate(S1))).real
         return S11, S12, S33, S34
 
     def _calculate_S1S2(self):
@@ -100,17 +113,17 @@ class MieScatteringModel:
 
 
 if __name__ == '__main__':
-    wavelength = 1300
+    wavelength = 1000
     psm = ParticleSizeModel()
-    mie_scatt = MieScatteringModel(refractive_ind, psm, wavelength)
+    mie_scatt = MieScatteringModel(wavelength, refractive_ind, psm)
 
     # plot the Mueller matrix elements
     plot_mueller_matrix_elems(mie_scatt.theta, mie_scatt.S11, mie_scatt.S12, mie_scatt.S33, mie_scatt.S34)
     plot_intensity_polarization(mie_scatt.theta, mie_scatt.SL, mie_scatt.SR, mie_scatt.SU, mie_scatt.P)
 
     # plot the Mueller matrix
-    S11, S12, S33, S34 = mie_scatt.get_mie_scattering_mueller_elem(np.array([0.1, 0.2, 0.3]))
-    M = mie_scatt.get_mueller_matrix_from_elem(S11, S12, S33, S34)
-    print(M[..., 0])
-    print(M[..., 1])
-    print(M[..., 2])
+    # S11, S12, S33, S34 = mie_scatt.get_mie_scattering_mueller_elem(mie_scatt.theta)
+    # M = mie_scatt.get_mueller_matrix_from_elem(S11, S12, S33, S34)
+    # print(M[..., 0])
+    # print(M[..., 1])
+    # print(M[..., 2])
