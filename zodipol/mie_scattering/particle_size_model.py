@@ -1,5 +1,5 @@
 import numpy as np
-from zodipol.utils import normalize
+from zodipol.utils.math import normalize
 
 
 s_min = 0.2  # particle min size in um
