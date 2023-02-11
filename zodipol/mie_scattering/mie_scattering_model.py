@@ -1,13 +1,12 @@
 import numpy as np
 from multiprocessing import Pool
 from PyMieScatt import MieS1S2
-from functools import cache
 
-from mie_scattering.plotting import plot_mueller_matrix_elems, plot_intensity_polarization
-from mie_scattering.particle_size_model import ParticleSizeModel
-from mie_scattering.solar_irradiance_model import SolarIrradianceModel
-from utils.constants import refractive_ind
-from utils.math import normalize
+from zodipol.mie_scattering.plotting import plot_mueller_matrix_elems, plot_intensity_polarization
+from zodipol.mie_scattering.particle_size_model import ParticleSizeModel
+from zodipol.mie_scattering.solar_irradiance_model import get_solar_irradiance
+from zodipol.utils.constants import refractive_ind
+from zodipol.utils.math import normalize
 
 
 class MieScatteringModel:
@@ -127,7 +126,7 @@ class MieScatteringModel:
         :param wavelength: wavelength in nm
         :return: black body weights
         """
-        solar_weights = SolarIrradianceModel._get_solar_irradiance(wavelength)
+        solar_weights = get_solar_irradiance(wavelength)
         return normalize(solar_weights)
 
 
@@ -141,8 +140,8 @@ if __name__ == '__main__':
     plot_intensity_polarization(mie_scatt.theta, mie_scatt.SL, mie_scatt.SR, mie_scatt.SU, mie_scatt.P)
 
     # plot the Mueller matrix
-    # S11, S12, S33, S34 = mie_scatt.get_mie_scattering_mueller_elem(mie_scatt.theta)
-    # M = mie_scatt.get_mueller_matrix_from_elem(S11, S12, S33, S34)
-    # print(M[..., 0])
-    # print(M[..., 1])
-    # print(M[..., 2])
+    S11, S12, S33, S34 = mie_scatt.get_mie_scattering_mueller_elem(mie_scatt.theta)
+    M = mie_scatt.get_mueller_matrix_from_elem(S11, S12, S33, S34)
+    print(M[..., 0])
+    print(M[..., 1])
+    print(M[..., 2])
