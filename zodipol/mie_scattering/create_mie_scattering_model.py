@@ -1,12 +1,12 @@
 import numpy as np
 import astropy.units as u
 
-from mie_scattering.mie_scattering_model import MieScatteringModel
-from mie_scattering.solar_irradiance_model import SolarIrradianceModel
-from mie_scattering.particle_size_model import ParticleSizeModel
-from mie_scattering.plotting import plot_total_intensities, plot_polarizations, plot_intensity_polarization, \
+from mie_scattering_model import MieScatteringModel
+from solar_irradiance_model import SolarIrradianceModel
+from particle_size_model import ParticleSizeModel
+from plotting import plot_total_intensities, plot_polarizations, plot_intensity_polarization, \
     plot_mueller_matrix_elems
-from utils.constants import refractive_ind
+from zodipol.utils import refractive_ind
 
 
 if __name__ == '__main__':
