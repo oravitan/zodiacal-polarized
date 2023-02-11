@@ -1,0 +1,31 @@
+.DS_Store
+.vscode
+
+# Byte compilation
+__pycache__
+
+# Distribution / packaging
+dist
+build
+.pytest_cache
+.mypy_cache
+.hypothesis
+.tox
+.eggs
+.cache
+htmlcov
+**.coverage**
+coverage.xml
+UNKNOWN.egg-info
+docs/_build/
+site
+# Development files and directories
+context.py
+test.py
+fitting
+zodipy_local/zodipy_local/_integration.py
+
+# data
+dirbe
+
+TODO.md
