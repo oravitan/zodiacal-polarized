@@ -29,24 +29,33 @@ if __name__ == '__main__':
     # Combine the model weighted based on the solar irradiance
     init_model = list(mie_scatt_wavelength.values())[0]
     theta = init_model.theta
-    S1_all = np.sum([sol * scat.S1 for scat, sol in zip(mie_scatt_wavelength.values(), sim)], axis=0)
-    S2_all = np.sum([sol * scat.S2 for scat, sol in zip(mie_scatt_wavelength.values(), sim)], axis=0)
+    # S1_all = np.sum([sol * scat.S1 for scat, sol in zip(mie_scatt_wavelength.values(), sim)], axis=0)
+    # S2_all = np.sum([sol * scat.S2 for scat, sol in zip(mie_scatt_wavelength.values(), sim)], axis=0)
 
-    SL, SR = np.real(S1_all.conj() * S1_all), np.real(S2_all.conj() * S2_all)
-    SU = (SL + SR) / 2
-    P = (SL - SR) / (SL + SR)
+    # SL = np.sum([sol * scat.SL for scat, sol in zip(mie_scatt_wavelength.values(), sim)], axis=0)
+    # SR = np.sum([sol * scat.SR for scat, sol in zip(mie_scatt_wavelength.values(), sim)], axis=0)
+    # SU = np.sum([sol * scat.SU for scat, sol in zip(mie_scatt_wavelength.values(), sim)], axis=0)
+
+    # SL, SR = np.real(S1_all.conj() * S1_all), np.real(S2_all.conj() * S2_all)
+    # SU = (SL + SR) / 2
+    # P = (SL - SR) / (SL + SR)
 
     # plot the combined results
-    plot_intensity_polarization(theta, SL, SR, SU, P)
+    # plot_intensity_polarization(theta, SL, SR, SU, P)
+
+    S11 = np.sum([sol * scat.S11 for scat, sol in zip(mie_scatt_wavelength.values(), sim)], axis=0) / sum(sim)
+    S12 = np.sum([sol * scat.S12 for scat, sol in zip(mie_scatt_wavelength.values(), sim)], axis=0) / sum(sim)
+    S33 = np.sum([sol * scat.S33 for scat, sol in zip(mie_scatt_wavelength.values(), sim)], axis=0) / sum(sim)
+    S34 = np.sum([sol * scat.S34 for scat, sol in zip(mie_scatt_wavelength.values(), sim)], axis=0) / sum(sim)
 
     # calculate Mie scattering Mueller matrix elements
-    S11 = 0.5 * (np.real(S2_all.conj() * S2_all) + np.real(S1_all.conj() * S1_all))
-    S12 = 0.5 * (np.real(S2_all.conj() * S2_all) - np.real(S1_all.conj() * S1_all))
-    S33 = np.real(0.5 * (S2_all.conj() * S1_all + S1_all.conj() * S2_all))
-    S34 = np.real(1j * 0.5 * (S2_all.conj() * S1_all - S1_all.conj() * S2_all))
-
-    cross_section_norm = np.trapz(S11, theta) / np.pi
-    S11, S12, S33, S34 = (s / cross_section_norm for s in (S11, S12, S33, S34))
+    # S11 = 0.5 * (np.real(S2_all.conj() * S2_all) + np.real(S1_all.conj() * S1_all))
+    # S12 = 0.5 * (np.real(S2_all.conj() * S2_all) - np.real(S1_all.conj() * S1_all))
+    # S33 = np.real(0.5 * (S2_all.conj() * S1_all + S1_all.conj() * S2_all))
+    # S34 = np.real(1j * 0.5 * (S2_all.conj() * S1_all - S1_all.conj() * S2_all))
+    #
+    # cross_section_norm = np.trapz(S11, theta) / np.pi
+    # S11, S12, S33, S34 = (s / cross_section_norm for s in (S11, S12, S33, S34))
 
     # Plot the Mueller matrix elements
     plot_mueller_matrix_elems(theta, S11, S12, S33, S34)
