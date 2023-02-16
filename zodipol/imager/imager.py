@@ -12,15 +12,15 @@ IMAGER_RESPONSE_BLUE = pd.read_csv('imager/blue.csv', index_col=0)
 class Imager:
     def __init__(self,
                  exposure_time=10 * u.s,
-                 pixel_area = (3.45 * u.um) ** 2,
-                 lens_diameter = 20.0 * u.mm,
-                 lens_focal_length = 86.2 * u.mm,
-                 optical_loss = 0.96,
-                 quantum_efficiency = 30,
-                 std_read = 2.31,
-                 beta_t = 3.51 * (u.s ** -1) ,
-                 full_well = 10500,
-                 n_bits = 10
+                 pixel_area=(3.45 * u.um) ** 2,
+                 lens_diameter=20.0 * u.mm,
+                 lens_focal_length=86.2 * u.mm,
+                 optical_loss=0.96,
+                 quantum_efficiency=30,
+                 std_read=2.31,
+                 beta_t=3.51 * (u.s ** -1),
+                 full_well=10500,
+                 n_bits=10,
                  ):
         self.exposure_time = exposure_time
         self.pixel_area = pixel_area
@@ -61,7 +61,6 @@ class Imager:
             return IMAGER_RESPONSE_BLUE.index
         else:
             raise ValueError('Channel must be either red, green or blue')
-
 
     # ------------------------------------------------
     # ------------- Transformations ------------------
