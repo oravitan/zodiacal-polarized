@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     # Initialize the model
     imager = Imager()
-    model = Zodipy("dirbe", solar_cut=30 * u.deg, extrapolate=True, parallel=True)  # Initialize the model
+    model = Zodipy("dirbe", solar_cut=30 * u.deg, extrapolate=True, parallel=False)  # Initialize the model
 
     wavelength_range = imager.get_wavelength_range('red').values * u.nm
     imager_response = imager.get_camera_response(wavelength_range.value, 'red')
@@ -32,6 +32,20 @@ if __name__ == '__main__':
     # frequency, frequency_weight = get_satellite_response(central_frequency, 1 * u.THz, 10)
 
     # Calculate the emission at pixels
+    frequency_ord = np.sort(frequency)
+    frequency_weight = np.ones_like(frequency_ord)
+
+    binned_emission_orginal = model.get_binned_emission_pix(
+        frequency_ord,
+        weights=frequency_ord,
+        pixels=np.arange(hp.nside2npix(nside)),
+        nside=nside,
+        obs_time=Time("2022-06-14"),
+        obs="earth",
+        polarization_angle=polarization_angle,
+        polarizance=polarizance)
+
+
     binned_emission = np.stack([
         model.get_binned_emission_pix(
         f,

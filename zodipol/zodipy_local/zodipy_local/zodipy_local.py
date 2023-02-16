@@ -435,7 +435,7 @@ class Zodipy:
         # Get model parameters, some of which have been interpolated to the given
         # frequency or bandpass.
         source_parameters = SOURCE_PARAMS_MAPPING[type(self._ipd_model)](
-            bandpass, self._ipd_model
+            bandpass, self._ipd_model, keep_freq_elems=True
         )
 
         observer_position, earth_position = get_obs_and_earth_positions(
@@ -471,7 +471,7 @@ class Zodipy:
 
             unit_vector_chunks = np.array_split(unit_vectors, n_proc, axis=-1)
             integrated_comp_emission = np.zeros(
-                (len(self._ipd_model.comps), unit_vectors.shape[1], 4)
+                (len(self._ipd_model.comps), len(freq), unit_vectors.shape[1], 4)
             )
             with multiprocessing.get_context(SYS_PROC_START_METHOD).Pool(
                 processes=n_proc
@@ -533,7 +533,7 @@ class Zodipy:
                         comp_integrand, *self._gauss_points_and_weights
                     )
                     * 0.5
-                    * (stop[comp_label] - start[comp_label])[..., None]
+                    * (stop[comp_label] - start[comp_label])[..., None, None]
                 )
 
         emission = np.zeros(
