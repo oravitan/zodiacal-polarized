@@ -35,10 +35,9 @@ def kelsall(
     get_density_function: ComponentDensityFn,
     T_0: float,
     delta: float,
-    emissivity: np.float64,
-    albedo: np.float64,
-    phase_coefficients: tuple[float, ...],
-    solar_irradiance: np.float64,
+    emissivity: np.float64 | list[np.float64],
+    albedo: np.float64 | list[np.float64],
+    solar_irradiance: np.float64 | list[np.float64],
     bp_interpolation_table: npt.NDArray[np.float64],
     mie_scattering_model: MieScatteringModel,
 ) -> npt.NDArray[np.float64]:
@@ -51,19 +50,20 @@ def kelsall(
 
     temperature = get_dust_grain_temperature(R_helio, T_0, delta)
     blackbody_emission = np.interp(temperature, *bp_interpolation_table)
-    emission = (1 - albedo) * (emissivity * blackbody_emission)
+    emission = (1 - albedo[None, :]) * (emissivity[None, :] * blackbody_emission)
 
     unpolarized_stokes = get_unpolarized_stokes_vector()
-    emission = np.einsum('ij,jkw->ikw', emission, unpolarized_stokes)
+    emission = np.einsum('imj,jkw->imkw', emission[..., None], unpolarized_stokes)
 
-    if albedo != 0:
+    if any(albedo != 0):
         solar_flux = solar_irradiance / R_helio**2
         scattering_angle = get_scattering_angle(R_los, R_helio, X_los, X_helio)
 
+        # TODO: after mueller obj change - add the frequency / wavelength as an input and change dimensions
         scattering_emission = mie_scattering_model.get_mueller_matrix(scattering_angle.squeeze())
         scattering_intensity = np.einsum('ijk,kw->ijw', scattering_emission, unpolarized_stokes[0, ...])
-        emission += albedo * solar_flux[..., None] * scattering_intensity
-    emission_density = emission * get_density_function(X_helio)[..., None]
+        emission += albedo[None, :, None, None] * solar_flux[..., None, None] * scattering_intensity[:, None, ...]
+    emission_density = emission * get_density_function(X_helio)[..., None, None]
 
     n_sca = X_los / R_los
     n_i = X_helio / R_helio
@@ -73,7 +73,7 @@ def kelsall(
     x, y, z = B[0, :, 0], B[1, :, 0], B[2, :, 0]
     theta_scat = np.arctan2((x ** 2 + y ** 2) ** 0.5, z)
     camera_rotation_mueller = get_rotation_mueller_matrix(theta_scat)
-    emission_rotated = np.einsum('ijk,ikl->ij', camera_rotation_mueller, emission_density)
+    emission_rotated = np.einsum('ijk,imkl->imj', camera_rotation_mueller, emission_density)
     return emission_rotated
 
 

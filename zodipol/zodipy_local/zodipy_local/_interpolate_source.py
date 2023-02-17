@@ -24,7 +24,7 @@ GetSourceParametersFn = Callable[
 
 
 def get_source_parameters_kelsall_comp(
-    bandpass: Bandpass, model: Kelsall
+    bandpass: Bandpass, model: Kelsall, keep_freq_elems=False
 ) -> dict[ComponentLabel | str, dict[str, Any]]:
     if not bandpass.frequencies.unit.is_equivalent(model.spectrum.unit):
         bandpass.switch_convention()
@@ -50,24 +50,12 @@ def get_source_parameters_kelsall_comp(
         else:
             albedo = 0
 
-        if bandpass.frequencies.size > 1:
+        if bandpass.frequencies.size > 1 and not keep_freq_elems:
             emissivity = bandpass.integrate(emissivity)
             albedo = bandpass.integrate(albedo)
 
         source_parameters[comp_label]["emissivity"] = emissivity
         source_parameters[comp_label]["albedo"] = albedo
-
-    if model.phase_coefficients is not None:
-        phase_coefficients = interpolator(y=np.asarray(model.phase_coefficients))(
-            bandpass.frequencies.value
-        )
-        phase_coefficients = interpolator(y=np.asarray(model.phase_coefficients))(
-            bandpass.frequencies.value
-        )
-    else:
-        phase_coefficients = np.repeat(
-            np.zeros((3, 1)), repeats=bandpass.frequencies.size, axis=-1
-        )
 
     if model.solar_irradiance is not None:
         solar_irradiance = interpolator(y=model.solar_irradiance)(
@@ -79,11 +67,9 @@ def get_source_parameters_kelsall_comp(
     else:
         solar_irradiance = 0
 
-    if bandpass.frequencies.size > 1:
-        phase_coefficients = bandpass.integrate(phase_coefficients)
+    if bandpass.frequencies.size > 1 and not keep_freq_elems:
         solar_irradiance = bandpass.integrate(solar_irradiance)
     source_parameters["common"] = {}
-    source_parameters["common"]["phase_coefficients"] = tuple(phase_coefficients)
     source_parameters["common"]["solar_irradiance"] = solar_irradiance
     source_parameters["common"]["T_0"] = model.T_0
     source_parameters["common"]["delta"] = model.delta

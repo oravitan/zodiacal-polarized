@@ -12,15 +12,15 @@ IMAGER_RESPONSE_BLUE = pd.read_csv('imager/blue.csv', index_col=0)
 class Imager:
     def __init__(self,
                  exposure_time=10 * u.s,
-                 pixel_area = (3.45 * u.um) ** 2,
-                 lens_diameter = 20.0 * u.mm,
-                 lens_focal_length = 86.2 * u.mm,
-                 optical_loss = 0.96,
-                 quantum_efficiency = 30,
-                 std_read = 2.31,
-                 beta_t = 3.51 * (u.s ** -1) ,
-                 full_well = 10500,
-                 n_bits = 10
+                 pixel_area=(3.45 * u.um) ** 2,
+                 lens_diameter=20.0 * u.mm,
+                 lens_focal_length=86.2 * u.mm,
+                 optical_loss=0.96,
+                 quantum_efficiency=30,
+                 std_read=2.31,
+                 beta_t=3.51 * (u.s ** -1),
+                 full_well=10500,
+                 n_bits=10,
                  ):
         self.exposure_time = exposure_time
         self.pixel_area = pixel_area
@@ -62,7 +62,6 @@ class Imager:
         else:
             raise ValueError('Channel must be either red, green or blue')
 
-
     # ------------------------------------------------
     # ------------- Transformations ------------------
     # ------------------------------------------------
@@ -76,10 +75,14 @@ class Imager:
         """
         intensity = intensity.to('J / m^2 sr')  # transform to W / m^2 Hz sr
         focal_param = np.pi * (self.lens_diameter / 2 / self.lens_focal_length) ** 2 * u.sr  # Focal parameter
-        energy = intensity * self.exposure_time * self.pixel_area * focal_param * self.optical_loss  # Energy
-        n_electrons_per_freq = energy / (h * frequency) * frequency_weight  # Number of electrons per frequency
+        energy_factor = self.exposure_time * self.pixel_area * focal_param * self.optical_loss
+        energy = intensity * energy_factor  # Energy
 
-        n_electrons = np.trapz(n_electrons_per_freq, frequency)  # Number of electrons integral
+        # Calculate the number of electrons per pixel
+        freq_gradient = np.gradient(frequency)
+        n_electrons = np.einsum('ijk,j->ik', energy, freq_gradient / (h * frequency) * frequency_weight)  # Number of electrons per frequency
+
+        # n_electrons = np.sum(n_electrons_per_freq, axis=1)  # Number of electrons integral
         n_electrons = n_electrons.si  # Number of electrons in SI units
         return n_electrons
 

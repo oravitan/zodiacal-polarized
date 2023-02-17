@@ -14,7 +14,7 @@ class ParticleSizeModel:
     """
     Particle size model
     """
-    def __init__(self, s_res=300):
+    def __init__(self, s_res=50):
         """
         Initialize the particle size model
         :param s_res: particle size resolution

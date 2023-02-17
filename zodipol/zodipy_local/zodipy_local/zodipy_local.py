@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import multiprocessing
 import platform
+import logging
 from functools import partial
 from typing import TYPE_CHECKING, Callable, Literal, Sequence
 
@@ -379,6 +380,7 @@ class Zodipy:
         """
         pixels = get_validated_pix(pixels=pixels, nside=nside)
 
+        logging.info('Started pixels unit vector calculations')
         unique_pixels, counts = np.unique(pixels, return_counts=True)
         unit_vectors = get_unit_vectors_from_pixels(
             coord_in=coord_in,
@@ -421,6 +423,7 @@ class Zodipy:
         mie_scattering_model: MieScatteringModel = None
     ) -> u.Quantity[u.MJy / u.sr]:
         """Compute the component-wise zodiacal emission."""
+        logging.info('Started emission calculations')
         bandpass = validate_and_get_bandpass(
             freq=freq,
             weights=weights,
@@ -429,27 +432,32 @@ class Zodipy:
         )
 
         if mie_scattering_model is None:
+            logging.info('Started mie scattering model calculations')
             wavelength = freq.to(u.nm, equivalencies=u.spectral()).value
             mie_scattering_model = MieScatteringModel(wavelength)
 
         # Get model parameters, some of which have been interpolated to the given
         # frequency or bandpass.
+        logging.info('Started model parameters calculations')
         source_parameters = SOURCE_PARAMS_MAPPING[type(self._ipd_model)](
-            bandpass, self._ipd_model
+            bandpass, self._ipd_model, keep_freq_elems=True
         )
 
+        logging.info('Started observer position calculations')
         observer_position, earth_position = get_obs_and_earth_positions(
             obs=obs, obs_time=obs_time, obs_pos=obs_pos
         )
 
         # Get the integration limits for each zodiacal component (which may be
         # different or the same depending on the model) along all line of sights.
+        logging.info('Started line of sight calculations')
         start, stop = get_line_of_sight_start_and_stop_distances(
             components=self._ipd_model.comps.keys(),
             unit_vectors=unit_vectors,
             obs_pos=observer_position,
         )
 
+        logging.info('Started density partials calculations')
         density_partials = construct_density_partials_comps(
             comps=self._ipd_model.comps,
             dynamic_params={"X_earth": earth_position},
@@ -458,6 +466,7 @@ class Zodipy:
         # Make table of pre-computed bandpass integrated blackbody emission.
         bandpass_interpolatation_table = get_bandpass_interpolation_table(bandpass)
 
+        logging.info('Started common integrand calculations')
         common_integrand = partial(
             EMISSION_MAPPING[type(self._ipd_model)],
             X_obs=observer_position,
@@ -467,11 +476,12 @@ class Zodipy:
         )
 
         if self.parallel:
+            logging.info('Started parallel emission calculations')
             n_proc = multiprocessing.cpu_count() if self.n_proc is None else self.n_proc
 
             unit_vector_chunks = np.array_split(unit_vectors, n_proc, axis=-1)
             integrated_comp_emission = np.zeros(
-                (len(self._ipd_model.comps), unit_vectors.shape[1], 4)
+                (len(self._ipd_model.comps), unit_vectors.shape[1], len(freq), 4)
             )
             with multiprocessing.get_context(SYS_PROC_START_METHOD).Pool(
                 processes=n_proc
@@ -509,12 +519,13 @@ class Zodipy:
                     integrated_comp_emission[idx] += (
                         np.concatenate([result.get() for result in proc_chunks])
                         * 0.5
-                        * (stop[comp_label] - start[comp_label])[..., None]
+                        * (stop[comp_label] - start[comp_label])[..., None, None]
                     )
 
         else:
+            logging.info('Started serial emission calculations')
             integrated_comp_emission = np.zeros(
-                (len(self._ipd_model.comps), unit_vectors.shape[1], 4)
+                (len(self._ipd_model.comps), unit_vectors.shape[1], len(freq), 4)
             )
             unit_vectors_expanded = np.expand_dims(unit_vectors, axis=-1)
 
@@ -533,13 +544,15 @@ class Zodipy:
                         comp_integrand, *self._gauss_points_and_weights
                     )
                     * 0.5
-                    * (stop[comp_label] - start[comp_label])[..., None]
+                    * (stop[comp_label] - start[comp_label])[..., None, None]
                 )
 
+        logging.info('Started emission binning')
         emission = np.zeros(
             (
                 len(self._ipd_model.comps),
                 hp.nside2npix(nside) if binned else indicies.size,
+                len(freq),
                 4,
             )
         )
@@ -557,10 +570,15 @@ class Zodipy:
                 emission[:, solar_mask[indicies]] = self.solar_cut_fill_value
 
         emission = (emission << SPECIFIC_INTENSITY_UNITS).to(u.MJy / u.sr)
-        polarization_angle = np.array(polarization_angle)
-        simulated_emission = (emission[..., 0][..., None] + polarizance * np.cos(2 * polarization_angle[None, None, ...]) * emission[..., 1][..., None] +
-                    polarizance * np.sin(2 * polarization_angle[None, None, ...]) * emission[..., 2][..., None])
-        return simulated_emission if return_comps else simulated_emission.sum(axis=0)
+
+        logging.info('Started polarization calculations')
+        if not return_comps:
+            emission = emission.sum(axis=0)
+        polarization_angle = np.broadcast_to(np.array(polarization_angle), emission.shape[:-1] + (len(polarization_angle),))
+        simulated_emission = (emission[..., 0][..., None] +
+                              polarizance * np.cos(2 * polarization_angle) * emission[..., 1][..., None] +
+                              polarizance * np.sin(2 * polarization_angle) * emission[..., 2][..., None])
+        return simulated_emission
 
     def __repr__(self) -> str:
         repr_str = f"{self.__class__.__name__}("
