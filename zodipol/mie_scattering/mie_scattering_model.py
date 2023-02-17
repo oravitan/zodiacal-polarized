@@ -57,7 +57,8 @@ class MieScatteringModel:
         return self.get_mueller_matrix(*args, **kwargs)
 
     def get_mueller_matrix(self, wavelength, theta):
-        S1, S2 = self._interp_S1S2(wavelength, theta)
+        wavelength_m, theta_m = np.meshgrid(wavelength, theta)
+        S1, S2 = self._interp_S1S2(wavelength_m, theta_m)
         S11, S12, S33, S34 = self._calculate_mueller_elems(S1, S2)
         cross_section = self._get_cross_section(wavelength)
         return self.get_mueller_matrix_from_elem(S11, S12, S33, S34, cross_section=cross_section)
@@ -80,24 +81,25 @@ class MieScatteringModel:
         :return: Mueller matrix
         """
         assert len(S11) == len(S12) == len(S33) == len(S34), 'S11, S12, S33, S34 must have the same length'
-        M = np.zeros((len(S11), 4, 4), dtype=np.float64)
-        M[:, 0, 0] = S11
-        M[:, 0, 1] = S12
-        M[:, 1, 0] = S12
-        M[:, 1, 1] = S11
+        M = np.zeros((S11.shape + (4, 4)), dtype=np.float64)
+        M[..., 0, 0] = S11
+        M[..., 0, 1] = S12
+        M[..., 1, 0] = S12
+        M[..., 1, 1] = S11
 
-        M[:, 2, 2] = S33
-        M[:, 2, 3] = -S34
-        M[:, 3, 2] = S34
-        M[:, 3, 3] = S33
-        M /= cross_section
+        M[..., 2, 2] = S33
+        M[..., 2, 3] = -S34
+        M[..., 3, 2] = S34
+        M[..., 3, 3] = S33
+        M /= cross_section[..., None, None]
         return M
 
     def _get_cross_section(self, wavelength):
         theta = np.linspace(0, np.pi, 361)
+        wavelength, theta = np.meshgrid(wavelength, theta)
         S1, S2 = self._interp_S1S2(wavelength, theta)
         S11 = 0.5 * (np.abs(S2) ** 2 + np.abs(S1) ** 2).real
-        return np.trapz(S11, theta) / np.pi
+        return np.trapz(S11, theta, axis=0)[None, ...] / np.pi
 
     # ------------------ Internal Methods ------------------
     def _interp_S1S2(self, wavelength: float, theta):
