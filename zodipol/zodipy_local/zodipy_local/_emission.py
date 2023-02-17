@@ -40,6 +40,7 @@ def kelsall(
     solar_irradiance: np.float64 | list[np.float64],
     bp_interpolation_table: npt.NDArray[np.float64],
     mie_scattering_model: MieScatteringModel,
+    wavelength: np.float64,
 ) -> npt.NDArray[np.float64]:
     """Kelsall uses common line of sight grid from obs to 5.2 AU."""
     # Convert the quadrature range from [-1, 1] to the true ecliptic positions
@@ -59,10 +60,9 @@ def kelsall(
         solar_flux = solar_irradiance / R_helio**2
         scattering_angle = get_scattering_angle(R_los, R_helio, X_los, X_helio)
 
-        # TODO: after mueller obj change - add the frequency / wavelength as an input and change dimensions
-        scattering_emission = mie_scattering_model.get_mueller_matrix(scattering_angle.squeeze())
-        scattering_intensity = np.einsum('ijk,kw->ijw', scattering_emission, unpolarized_stokes[0, ...])
-        emission += albedo[None, :, None, None] * solar_flux[..., None, None] * scattering_intensity[:, None, ...]
+        scattering_emission = mie_scattering_model.get_mueller_matrix(wavelength, scattering_angle.squeeze())
+        scattering_intensity = np.einsum('ifjk,kw->ifjw', scattering_emission, unpolarized_stokes[0, ...])
+        emission += albedo[None, :, None, None] * solar_flux[..., None, None] * scattering_intensity
     emission_density = emission * get_density_function(X_helio)[..., None, None]
 
     n_sca = X_los / R_los

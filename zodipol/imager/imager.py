@@ -120,7 +120,7 @@ class Imager:
             n_electrons = self._dark_current_noise(n_electrons)
         if quantization_noise:
             n_electrons = self._quantization_noise(n_electrons)
-        n_electrons = np.where(n_electrons > 0, n_electrons, 0)
+        n_electrons = np.clip(n_electrons, a_min=0, a_max=self.full_well)
         return n_electrons
 
     def _camera_poisson_noise(self, n_electrons):

@@ -431,10 +431,10 @@ class Zodipy:
             extrapolate=self.extrapolate,
         )
 
+        wavelength = freq.to(u.nm, equivalencies=u.spectral()).value
         if mie_scattering_model is None:
             logging.info('Started mie scattering model calculations')
-            wavelength = freq.to(u.nm, equivalencies=u.spectral()).value
-            mie_scattering_model = MieScatteringModel(wavelength)
+            mie_scattering_model = MieScatteringModel.train(wavelength)
 
         # Get model parameters, some of which have been interpolated to the given
         # frequency or bandpass.
@@ -472,6 +472,7 @@ class Zodipy:
             X_obs=observer_position,
             bp_interpolation_table=bandpass_interpolatation_table,
             mie_scattering_model=mie_scattering_model,
+            wavelength=wavelength,
             **source_parameters["common"],
         )
 

@@ -5,6 +5,7 @@ import numpy as np
 import logging
 from astropy.time import Time
 
+from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 from zodipy_local.zodipy_local import Zodipy
 from zodipol.imager.imager import Imager
 
@@ -12,21 +13,7 @@ logging_format = '%(asctime)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=logging_format)
 
 
-if __name__ == '__main__':
-    # set params
-    nside = 256  # Healpix resolution
-    central_wavelength = 0.62 * u.um  # Wavelength of the observation
-    polarizance = 1  # Polarizance of the observation
-    fov = 5  # deg
-    polarization_angle = np.linspace(0, np.pi, 60, endpoint=False)  # Polarization angle of the observation
-    logging.info(f'Started run.')
-
-    # Initialize the model
-    logging.info(f'Initializing the model.')
-    imager = Imager()
-    model = Zodipy("dirbe", solar_cut=30 * u.deg, extrapolate=True, parallel=True)  # Initialize the model
-
-    logging.info(f'Getting the wavelength range.')
+def generate_spectrum(imager):
     wavelength_range = imager.get_wavelength_range('red').values * u.nm
     imager_response = imager.get_camera_response(wavelength_range.value, 'red')
     frequency = wavelength_range.to(u.THz, equivalencies=u.spectral())  # Frequency of the observation
@@ -43,21 +30,39 @@ if __name__ == '__main__':
     frequency = frequency[frequency_ord]
     wavelength = wavelength[frequency_ord]
     imager_response = imager_response[frequency_ord]
+    return wavelength, frequency, imager_response
+
+
+if __name__ == '__main__':
+    # set params
+    logging.info(f'Started run.')
+    nside = 256  # Healpix resolution
+    polarizance = 0.9  # Polarizance of the observation
+    fov = 5  # deg
+    polarization_angle = np.linspace(0, np.pi, 60, endpoint=False)  # Polarization angle of the observation
+
+    # Initialize the model
+    logging.info(f'Initializing the model.')
+    imager = Imager()
+    mie_model = MieScatteringModel.load('saved_models/white_light_mie_model.npz')
+    model = Zodipy("dirbe", solar_cut=30 * u.deg, extrapolate=True, parallel=True)  # Initialize the model
+
+    logging.info(f'Getting the wavelength range.')
+    wavelength, frequency, imager_response = generate_spectrum(imager)
+    frequency_weight = np.ones_like(frequency)  # Weight of the frequencies
 
     # Calculate the emission at pixels
-    frequency_ord = np.sort(frequency)
-    frequency_weight = np.ones_like(frequency_ord)
-
     logging.info(f'Getting the binned emission.')
     binned_emission = model.get_binned_emission_pix(
-        frequency_ord,
-        weights=frequency_ord,
+        frequency,
+        weights=frequency_weight,
         pixels=np.arange(hp.nside2npix(nside)),
         nside=nside,
         obs_time=Time("2022-06-14"),
         obs="earth",
         polarization_angle=polarization_angle,
-        polarizance=polarizance)
+        polarizance=polarizance,
+        mie_scattering_model=mie_model)
 
     # Calculate the polarization
     logging.info(f'Calculating the polarization.')
@@ -106,7 +111,7 @@ if __name__ == '__main__':
     for ii in np.linspace(0, camera_intensity.shape[-1], 4, endpoint=False, dtype=int):
         hp.mollview(
             camera_intensity[..., ii],
-            title="Camera Intensity at {} with polarization angle {}".format(central_wavelength, np.round(polarization_angle[ii], 2)),
+            title="Camera Intensity with polarization angle {}".format(np.round(polarization_angle[ii], 2)),
             unit=str(camera_intensity.unit),
             min=0,
             cmap="afmhot",
@@ -117,8 +122,8 @@ if __name__ == '__main__':
 
     logging.info(f'Plotting the camera polarization.')
     hp.mollview(
-        camera_polarization[:, 0],
-        title="Camera polarization at {}".format(wavelength[-1]),
+        camera_polarization,
+        title="Camera polarization",
         unit="MJy/sr",
         cmap="afmhot",
         min=0,
