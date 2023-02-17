@@ -1,0 +1,100 @@
+[tool.poetry]
+name = "zodipy"
+homepage = "https://github.com/Cosmoglobe/zodipy"
+version = "0.8.3"
+description = "Software for simulating zodiacal emission"
+authors = ["Metin San <metinisan@gmail.com>"]
+readme = "README.md"
+license = "GPL-3.0"
+exclude = ["test.py"]
+
+[tool.poetry.dependencies]
+python = ">=3.8"
+numpy = "^1.22.3"
+healpy = "^1.15.0"
+astropy = ">=5.0.1"
+jplephem = "^2.17"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.4"
+black = "^22.3.0"
+mypy = "^0.910"
+tox = "^3.24.3"
+mkdocs = "^1.2.1"
+pymdown-extensions = "^9.4"
+markdown-include = "^0.6.0"
+pre-commit = "^2.19.0"
+hypothesis = "^6.47.5"
+coverage = "^6.4.1"
+pytest-cov = "^3.0.0"
+mkdocs-material = "^9.0.1"
+mkdocstrings = "^0.19.1"
+mkdocstrings-python = "^0.8.2"
+ruff = "^0.0.236"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+disable_error_code = ["misc"]
+plugins = "numpy.typing.mypy_plugin"
+overrides = [
+    { module = "healpy.*", ignore_missing_imports = true },
+    { module = "astropy.*", ignore_missing_imports = true },
+    { module = "scipy.*", ignore_missing_imports = true },
+    { module = "pkg_resources.*", ignore_missing_imports = true },
+]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore:.*overflow encountered in expm1.*",
+]
+
+[tool.isort]
+profile = "black"
+
+[tool.ruff]
+select = [
+    "F", 
+    "D", 
+    "F", 
+    "E", 
+    "W", 
+    "C", 
+    "B", 
+    "I", 
+    "YTT", 
+    "ANN", 
+    "S", 
+    "BLE", 
+    "A", 
+    "C4", 
+    "EM", 
+    "ISC",
+    "ICN",
+    "G",
+    "INP",
+    "PIE",
+    "T20",
+    "Q",
+    "RET",
+    "SIM",
+    "PLR",
+    "PLW",
+    "TRY",
+    "RUF",
+]
+line-length = 100
+ignore = [
+    "B905",
+    "D100",
+    "D104",
+    "D105",
+    "D107",
+    "ANN101",
+]
+
+[tool.ruff.pydocstyle]
+convention = "google"

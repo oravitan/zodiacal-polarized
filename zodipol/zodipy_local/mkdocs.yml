@@ -1,0 +1,51 @@
+site_name: ZodiPy
+site_description: Zodiacal emission simulations with python
+repo_url: https://github.com/cosmoglobe/zodipy
+
+theme:
+  name: "material"
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/lightbulb
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon:  material/lightbulb-outline
+        name: Switch to light mode
+  icon:
+    logo: material/book-open-page-variant
+
+markdown_extensions:
+  - markdown_include.include:
+      base_path: docs
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - Overview: index.md
+  - introduction.md
+  - install.md
+  - usage.md
+  - reference.md
+
+plugins:
+- search
+- mkdocstrings:
+    default_handler: python
+    handlers:
+      options:
+        merge_init_into_class: true
