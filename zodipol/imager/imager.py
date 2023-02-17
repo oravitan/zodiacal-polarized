@@ -3,10 +3,12 @@ import pandas as pd
 import astropy.units as u
 from astropy.constants import h
 
+from zodipol.utils.paths import IMAGER_RESPONSE_FILE_RED, IMAGER_RESPONSE_FILE_GREEN, IMAGER_RESPONSE_FILE_BLUE
 
-IMAGER_RESPONSE_RED = pd.read_csv('imager/red.csv', index_col=0)
-IMAGER_RESPONSE_GREEN = pd.read_csv('imager/green.csv', index_col=0)
-IMAGER_RESPONSE_BLUE = pd.read_csv('imager/blue.csv', index_col=0)
+
+IMAGER_RESPONSE_RED = pd.read_csv(IMAGER_RESPONSE_FILE_RED, index_col=0)
+IMAGER_RESPONSE_GREEN = pd.read_csv(IMAGER_RESPONSE_FILE_GREEN, index_col=0)
+IMAGER_RESPONSE_BLUE = pd.read_csv(IMAGER_RESPONSE_FILE_BLUE, index_col=0)
 
 
 class Imager:
