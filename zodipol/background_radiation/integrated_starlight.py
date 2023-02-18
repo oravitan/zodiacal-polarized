@@ -9,6 +9,7 @@ from tqdm import tqdm
 from scipy.optimize import least_squares
 from multiprocessing import Pool
 from scipy.interpolate import interp1d
+from itertools import repeat
 
 from zodipol.utils.paths import BACKGROUND_ISL_FLUX_FILE
 
@@ -133,7 +134,7 @@ class IntegratedStarlightFactory:
         self.pixel_size = hp.nside2pixarea(256, degrees=True) ** 0.5
         self.focal_param = np.pi*(1/(2*focal_ratio))**2 * u.sr
 
-    def _reset_visier(self, columns: str | list ="**"):
+    def _reset_visier(self, columns ="**"):
         """
         Reset the Vizier object
         :param columns: columns to query
@@ -179,7 +180,11 @@ class IntegratedStarlightFactory:
         """
         width = width if width is not None else self.pixel_size * u.deg
         lon, lat = self.get_pixels_directions()
-        flux = [self.estimate_direction_flux(llon, llat, frequency, width=width, parallel=parallel) for llon, llat in tqdm(zip(lon, lat), disable=not show_tqdm, total=len(lon))]
+        if parallel:
+            with Pool() as p:
+              flux = p.starmap(self.estimate_direction_flux, tqdm(zip(lon, lat, repeat(frequency), repeat(width)), total=len(lon), disable=not show_tqdm))
+        else:
+            flux = [self.estimate_direction_flux(lon, lat, frequency, width) for lon, lat in tqdm(zip(lon, lat), total=len(lon), disable=not show_tqdm)]
         isl = IntegratedStarlight(u.Quantity(flux), frequency)
         return isl
 
@@ -202,7 +207,7 @@ class IntegratedStarlightFactory:
         """
         return hp.pix2ang(self.nside, self.pixels, lonlat=True)
 
-    def estimate_direction_flux(self, lon, lat, frequency, width=None, resample_size=100, parallel=True):
+    def estimate_direction_flux(self, lon, lat, frequency, width=None, resample_size=100):
         """
         Estimate the flux in a given direction
         :param lon: galactic longitude
@@ -216,7 +221,7 @@ class IntegratedStarlightFactory:
         result = self.query_direction(lon, lat, width)
         flux_default_freq = self.process_query(result)
         if len(flux_default_freq) == 0:
-            return np.nan
+            return 0 * u.Unit('nW / m^2 um sr')
 
         # bootstrap the flux
         if flux_default_freq.shape[1] > resample_size:
@@ -229,7 +234,7 @@ class IntegratedStarlightFactory:
             total_flux_factor = 1
 
         # estimate the temperature and flux factor
-        temperature, flux_factor = self._estimate_temperatures(flux_sample, self.freq, parallel=parallel)
+        temperature, flux_factor = self._estimate_temperatures(flux_sample, self.freq)
         flux_estimation = boltzman(flux_factor[:, None], temperature[:, None], frequency)
         total_freq_flux = total_flux_factor * flux_estimation.sum(axis=0)
         return total_freq_flux * u.Unit('nW / m^2 um') / self.focal_param
@@ -246,7 +251,7 @@ class IntegratedStarlightFactory:
         return flux
 
     @staticmethod
-    def _estimate_temperatures(flux, freq, x0=15000, parallel=True):
+    def _estimate_temperatures(flux, freq, x0=15000):
         """
         Estimate the temperature of the starlight, using multiprocessing to speed up the process
         :param flux: flux
@@ -255,11 +260,7 @@ class IntegratedStarlightFactory:
         :return: temperature, flux factor
         """
         map_inputs = ((r, flux, freq, x0) for r in range(flux.shape[1]))
-        if parallel:
-            with Pool() as p:
-                res = p.starmap(get_temp, map_inputs)
-        else:
-            res = [get_temp(*args) for args in map_inputs]
+        res = [get_temp(*args) for args in map_inputs]
         temperature = np.array(res)
         flux_factor = (flux.T / boltzman(1, temperature[:, None], freq)).mean(axis=1)
         return temperature, flux_factor
@@ -269,7 +270,7 @@ if __name__ == '__main__':
     wavelength = [300, 400, 500, 600, 700] * u.nm
     frequency = wavelength.to(u.Hz, equivalencies=u.spectral())
 
-    isf = IntegratedStarlightFactory(nside=16)
+    isf = IntegratedStarlightFactory(nside=8)
     skymap_flux = isf.build_skymap(frequency.value, parallel=True)
     skymap_flux.save("saved_models/skymap_flux.npz")
 
