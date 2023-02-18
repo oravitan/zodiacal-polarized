@@ -27,7 +27,7 @@ class MieScatteringModel:
             refractive_index_dict = refractive_ind
         if particle_size is None:
             particle_size = ParticleSizeModel()
-        wavelength = np.array(wavelength)  # wavelength in um
+        wavelength = np.array(wavelength)  # wavelength in nm
         refractive_index = np.array(list(refractive_index_dict.keys()))
         refractive_index_weight = np.array(list(refractive_index_dict.values()))
         particle_likelihood = particle_size.particle_likelihood
@@ -64,7 +64,8 @@ class MieScatteringModel:
         return self.get_mueller_matrix_from_elem(S11, S12, S33, S34, cross_section=cross_section)
 
     def get_scattering(self, wavelength, theta):
-        S1, S2 = self._interp_S1S2(wavelength, theta)
+        wavelength_m, theta_m = np.meshgrid(wavelength, theta)
+        S1, S2 = self._interp_S1S2(wavelength_m, theta_m)
         SL, SR, SU = self._calculate_SLSRSU(S1, S2)
         P = self._calculate_polarization(SL, SR)
         return SL, SR, SU, P
@@ -95,11 +96,11 @@ class MieScatteringModel:
         return M
 
     def _get_cross_section(self, wavelength):
-        theta = np.linspace(0, np.pi, 361)
+        theta = np.linspace(0, np.pi, 180, endpoint=True)
         wavelength, theta = np.meshgrid(wavelength, theta)
         S1, S2 = self._interp_S1S2(wavelength, theta)
         S11 = 0.5 * (np.abs(S2) ** 2 + np.abs(S1) ** 2).real
-        return np.trapz(S11, theta, axis=0)[None, ...] / np.pi
+        return 2*np.pi*np.trapz(S11 * np.sin(theta), theta, axis=0)[None, ...]
 
     # ------------------ Internal Methods ------------------
     def _interp_S1S2(self, wavelength: float, theta):
@@ -179,7 +180,7 @@ if __name__ == '__main__':
     mie_scatt = mie(wavelength_test, theta_test)
 
     # plot the Mueller matrix elements
-    plot_mueller_matrix_elems(theta_test, mie_scatt[:, 0, 0], mie_scatt[:, 0, 1],
-                              mie_scatt[:, 2, 2], mie_scatt[:, 2, 3])
+    plot_mueller_matrix_elems(theta_test, mie_scatt[..., 0, 0], mie_scatt[..., 0, 1],
+                              mie_scatt[..., 2, 2], mie_scatt[..., 2, 3])
     plot_intensity_polarization(theta_test, SL, SR, SU, P)
 
