@@ -3,11 +3,13 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 import logging
+import os
 from astropy.time import Time
 
 from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 from zodipy_local.zodipy_local import Zodipy
 from zodipol.imager.imager import Imager
+from zodipol.background_radiation.integrated_starlight import IntegratedStarlight
 
 logging_format = '%(asctime)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=logging_format)
@@ -44,12 +46,32 @@ if __name__ == '__main__':
     # Initialize the model
     logging.info(f'Initializing the model.')
     imager = Imager()
-    mie_model = MieScatteringModel.load('saved_models/white_light_mie_model.npz')
     model = Zodipy("dirbe", solar_cut=30 * u.deg, extrapolate=True, parallel=True)  # Initialize the model
 
+    # Generate the spectrum
     logging.info(f'Getting the wavelength range.')
     wavelength, frequency, imager_response = generate_spectrum(imager)
     frequency_weight = np.ones_like(frequency)  # Weight of the frequencies
+
+    # Load the mie model
+    mie_model_path = 'saved_models/white_light_mie_model.npz'
+    if os.path.isfile(mie_model_path):
+        logging.info(f'Loading the mie model: {mie_model_path}')
+        mie_model = MieScatteringModel.load(mie_model_path)
+    else:
+        spectrum = np.logspace(np.log10(300), np.log10(700), 20)  # white light wavelength in nm
+        mie_model = MieScatteringModel.train(spectrum)
+
+    # Load the integrated starlight model
+    integrated_starlight_path = 'saved_models/skymap_flux.npz'
+    if os.path.isfile(integrated_starlight_path):
+        logging.info(f'Loading the integrated starlight model: {integrated_starlight_path}')
+        isl = IntegratedStarlight.load(integrated_starlight_path)
+        isl.resize_skymap(nside, update=True)
+        isl.interpolate_freq(frequency.to('Hz'), update=True)
+        isl_n_electrons = imager.intensity_to_number_of_electrons(isl.isl_map[..., None], wavelength=wavelength, weights=imager_response)
+    else:
+        isl_n_electrons = 0
 
     # Calculate the emission at pixels
     logging.info(f'Getting the binned emission.')
@@ -99,7 +121,8 @@ if __name__ == '__main__':
 
     # Calculate the number of photons
     logging.info(f'Calculating the realistic image with noise.')
-    n_electrons = imager.intensity_to_number_of_electrons(binned_emission, frequency, imager_response)
+    n_electrons = imager.intensity_to_number_of_electrons(binned_emission, frequency=frequency, weights=imager_response)
+    n_electrons = n_electrons + isl_n_electrons
     n_electrons_noised = imager.imager_noise_model(n_electrons)
     camera_intensity = imager.number_of_electrons_to_intensity(n_electrons_noised, frequency, imager_response)
 
