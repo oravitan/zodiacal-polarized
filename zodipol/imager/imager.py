@@ -67,7 +67,7 @@ class Imager:
     # ------------------------------------------------
     # ------------- Transformations ------------------
     # ------------------------------------------------
-    def intensity_to_number_of_electrons(self, intensity, frequency, frequency_weight):
+    def intensity_to_number_of_electrons(self, intensity, frequency=None, wavelength=None, weights=None):
         """
         Calculate the number of electrons from the intensity.
         :param intensity: imager received intensity pixels
@@ -75,18 +75,31 @@ class Imager:
         :param frequency_weight: frequency weights
         :return: number of electrons
         """
-        intensity = intensity.to('J / m^2 sr')  # transform to W / m^2 Hz sr
-        focal_param = np.pi * (self.lens_diameter / 2 / self.lens_focal_length) ** 2 * u.sr  # Focal parameter
-        energy_factor = self.exposure_time * self.pixel_area * focal_param * self.optical_loss
-        energy = intensity * energy_factor  # Energy
+        assert frequency is not None or wavelength is not None, 'Either frequency or wavelength range must be provided'
+        energy = self._get_energy(intensity)  # Energy
 
         # Calculate the number of electrons per pixel
-        freq_gradient = np.gradient(frequency)
-        n_electrons = np.einsum('ijk,j->ik', energy, freq_gradient / (h * frequency) * frequency_weight)  # Number of electrons per frequency
+        if frequency is not None:
+            freq_gradient = np.gradient(frequency)
+            n_electrons = np.einsum('ijk,j->ik', energy, freq_gradient / (h * frequency) * weights)  # Number of electrons per frequency
+        else:
+            frequency = wavelength.to(u.THz, equivalencies=u.spectral())
+            wavelength_gradient = -np.gradient(wavelength)  # wavelength is sorted by frequency, so it inverse
+            n_electrons = np.einsum('ijk,j->ik', energy, wavelength_gradient / (h * frequency) * weights)
 
         # n_electrons = np.sum(n_electrons_per_freq, axis=1)  # Number of electrons integral
         n_electrons = n_electrons.si  # Number of electrons in SI units
         return n_electrons
+
+    def _get_energy(self, intensity):
+        """
+        Calculate the energy from the intensity.
+        :param intensity: imager received intensity pixels
+        :return: energy
+        """
+        focal_param = np.pi * (self.lens_diameter / 2 / self.lens_focal_length) ** 2 * u.sr  # Focal parameter
+        energy_factor = self.exposure_time * self.pixel_area * focal_param * self.optical_loss
+        return intensity * energy_factor  # Energy
 
     def number_of_electrons_to_intensity(self, n_electrons, frequency, frequency_weight):
         """
