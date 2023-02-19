@@ -10,18 +10,19 @@ from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 from zodipy_local.zodipy_local import Zodipy
 from zodipol.imager.imager import Imager
 from zodipol.background_radiation.integrated_starlight import IntegratedStarlight
+from zodipol.estimation.estimate_signal import estimate_IQU, estimate_DoLP, estimate_AoP
 
 logging_format = '%(asctime)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=logging_format)
 
 
-def generate_spectrum(imager):
+def generate_spectrum(imager, top_freq=5):
     wavelength_range = imager.get_wavelength_range('red').values * u.nm
     imager_response = imager.get_camera_response(wavelength_range.value, 'red')
     frequency = wavelength_range.to(u.THz, equivalencies=u.spectral())  # Frequency of the observation
 
     logging.info(f'Getting the top frequencies.')
-    top_frequencies = imager_response.argsort()[-5:]  # Top 5 frequencies
+    top_frequencies = imager_response.argsort()[-top_freq:]  # Top 5 frequencies
 
     frequency = frequency[top_frequencies]  # Select the top 5 frequencies
     wavelength = wavelength_range[top_frequencies]  # Select the top 5 wavelengths
@@ -38,8 +39,8 @@ def generate_spectrum(imager):
 if __name__ == '__main__':
     # set params
     logging.info(f'Started run.')
-    nside = 256  # Healpix resolution
-    polarizance = 0.9  # Polarizance of the observation
+    nside = 128  # Healpix resolution
+    polarizance = 1  # Polarizance of the observation
     fov = 5  # deg
     polarization_angle = np.linspace(0, np.pi, 60, endpoint=False)  # Polarization angle of the observation
 
@@ -50,7 +51,7 @@ if __name__ == '__main__':
 
     # Generate the spectrum
     logging.info(f'Getting the wavelength range.')
-    wavelength, frequency, imager_response = generate_spectrum(imager)
+    wavelength, frequency, imager_response = generate_spectrum(imager, top_freq=5)
     frequency_weight = np.ones_like(frequency)  # Weight of the frequencies
 
     # Load the mie model
@@ -88,8 +89,9 @@ if __name__ == '__main__':
 
     # Calculate the polarization
     logging.info(f'Calculating the polarization.')
-    emission_max, emission_min = np.max(binned_emission, axis=-1), np.min(binned_emission, axis=-1)
-    binned_polarization = (emission_max - emission_min) / (emission_max + emission_min)
+    I, Q, U = estimate_IQU(binned_emission, polarization_angle)
+    binned_dolp = estimate_DoLP(I, Q, U)
+    binned_aop = estimate_AoP(Q, U)
 
     # Plot the emission of the first polarization angle
     logging.info(f'Plotting the emission of the first polarization angle.')
@@ -98,7 +100,7 @@ if __name__ == '__main__':
             binned_emission[..., 0, ii],
             title="Binned zodiacal emission at {} with polarization angle {}".format(wavelength[0],np.round(polarization_angle[ii], 2)),
             unit=str(binned_emission.unit),
-            norm='log',
+            min=0,
             cmap="afmhot",
             rot=(0, 0, 0)
         )
@@ -108,12 +110,22 @@ if __name__ == '__main__':
     # plot the binned polarization
     logging.info(f'Plotting the binned polarization.')
     hp.mollview(
-        binned_polarization[:, 0],
+        binned_dolp[..., 0],
         title="Binned zodiacal polarization at {}".format(wavelength[-1]),
         unit="MJy/sr",
         cmap="afmhot",
-        min=0,
-        max=1,
+        rot=(0, 0, 0)
+    )
+    hp.graticule()
+    plt.show()
+
+    hp.mollview(
+        binned_aop[..., 0],
+        title="Binned angle of polarization at {}".format(wavelength[-1]),
+        unit="MJy/sr",
+        cmap="afmhot",
+        min=-np.pi,
+        max=np.pi,
         rot=(0, 0, 0)
     )
     hp.graticule()
@@ -126,8 +138,9 @@ if __name__ == '__main__':
     n_electrons_noised = imager.imager_noise_model(n_electrons)
     camera_intensity = imager.number_of_electrons_to_intensity(n_electrons_noised, frequency, imager_response)
 
-    camera_intensity_max, camera_intensity_min = np.max(camera_intensity, axis=-1), np.min(camera_intensity, axis=-1)
-    camera_polarization = (camera_intensity_max - camera_intensity_min) / (camera_intensity_max + camera_intensity_min)
+    I, Q, U = estimate_IQU(camera_intensity, polarization_angle)
+    camera_dolp = estimate_DoLP(I, Q, U)
+    camera_aop = estimate_AoP(Q, U)
 
     # Plot the emission of the first polarization angle
     logging.info(f'Plotting the camera intensity of the first polarization angle.')
@@ -145,12 +158,22 @@ if __name__ == '__main__':
 
     logging.info(f'Plotting the camera polarization.')
     hp.mollview(
-        camera_polarization,
+        camera_dolp,
         title="Camera polarization",
         unit="MJy/sr",
         cmap="afmhot",
-        min=0,
-        max=1,
+        rot=(0, 0, 0)
+    )
+    hp.graticule()
+    plt.show()
+
+    hp.mollview(
+        camera_aop,
+        title="Camera angle of polarization",
+        unit="MJy/sr",
+        cmap="afmhot",
+        min=-np.pi,
+        max=np.pi,
         rot=(0, 0, 0)
     )
     hp.graticule()
