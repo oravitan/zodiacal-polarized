@@ -57,11 +57,12 @@ class IntegratedStarlight:
     def __init__(self, isl_map, frequency, catalog=None):
         """
         Integrated starlight model
-        :param isl_flux: integrated starlight flux data
+        :param isl_map: integrated starlight flux data
+        :param frequency: frequency
         :param catalog: Vizier catalog
         """
         self.catalog = catalog
-        self.isl_map = isl_map
+        self.isl_map = self._preprocess_map(isl_map)
         self.frequency = frequency
 
     def save(self, path):
@@ -85,6 +86,18 @@ class IntegratedStarlight:
         data = np.load(path)
         units = u.Unit(str(data["isl_units"]))
         return cls(data["isl_map"]*units, data["frequency"])
+
+    @staticmethod
+    def _preprocess_map(isl_map):
+        """
+        Preprocess the integrated starlight map
+        :param isl_map: integrated starlight map
+        :param frequency: frequency
+        :param nside: healpix nside
+        :return: preprocessed integrated starlight map
+        """
+        isl_map = np.nan_to_num(isl_map, nan=0)
+        return isl_map
 
     def interpolate_freq(self, new_frew, update=False):
         """
