@@ -5,7 +5,7 @@ from PyMieScatt import MieS1S2
 from scipy.ndimage import convolve
 from scipy.interpolate import RegularGridInterpolator
 
-from zodipol.mie_scattering.plotting import plot_mueller_matrix_elems, plot_intensity_polarization
+from zodipol.visualization.mie_plotting import plot_mueller_matrix_elems, plot_intensity_polarization
 from zodipol.mie_scattering.particle_size_model import ParticleSizeModel
 from zodipol.utils.constants import refractive_ind
 
