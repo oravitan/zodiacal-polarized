@@ -1,6 +1,5 @@
 import astropy.units as u
 import healpy as hp
-import matplotlib.pyplot as plt
 import numpy as np
 import logging
 import os
@@ -11,38 +10,33 @@ from zodipy_local.zodipy_local import Zodipy
 from zodipol.imager.imager import Imager
 from zodipol.background_radiation.integrated_starlight import IntegratedStarlight
 from zodipol.estimation.estimate_signal import estimate_IQU, estimate_DoLP, estimate_AoP
+from zodipol.visualization.skymap_plots import plot_skymap, plot_skymap_indices
 
 logging_format = '%(asctime)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=logging_format)
 
 
-def generate_spectrum(imager, top_freq=5):
+def generate_spectrum(imager, n_freq=5):
     wavelength_range = imager.get_wavelength_range('red').values * u.nm
+    frequency_range = wavelength_range.to(u.THz, equivalencies=u.spectral())  # Frequency of the observation
     imager_response = imager.get_camera_response(wavelength_range.value, 'red')
-    frequency = wavelength_range.to(u.THz, equivalencies=u.spectral())  # Frequency of the observation
 
-    logging.info(f'Getting the top frequencies.')
-    top_frequencies = imager_response.argsort()[-top_freq:]  # Top 5 frequencies
+    f_min = max(frequency_range.min(), 489 * u.THz)
+    f_max = min(frequency_range.max(), 995 * u.THz)
+    frequency = np.linspace(f_min, f_max, n_freq, endpoint=True)
+    wavelength_interp = frequency.to(u.nm, equivalencies=u.spectral())
+    imager_response_interp = np.interp(wavelength_interp, wavelength_range, imager_response)
 
-    frequency = frequency[top_frequencies]  # Select the top 5 frequencies
-    wavelength = wavelength_range[top_frequencies]  # Select the top 5 wavelengths
-    imager_response = imager_response[top_frequencies]  # Select the top 5 imager responses
-
-    # sort by frequency
-    frequency_ord = np.argsort(frequency)
-    frequency = frequency[frequency_ord]
-    wavelength = wavelength[frequency_ord]
-    imager_response = imager_response[frequency_ord]
-    return wavelength, frequency, imager_response
+    return wavelength_interp, frequency, imager_response_interp
 
 
 if __name__ == '__main__':
     # set params
     logging.info(f'Started run.')
-    nside = 128  # Healpix resolution
+    nside = 64  # Healpix resolution
     polarizance = 1  # Polarizance of the observation
     fov = 5  # deg
-    polarization_angle = np.linspace(0, np.pi, 60, endpoint=False)  # Polarization angle of the observation
+    polarization_angle = np.linspace(0, np.pi, 8, endpoint=False)  # Polarization angle of the observation
 
     # Initialize the model
     logging.info(f'Initializing the model.')
@@ -51,7 +45,7 @@ if __name__ == '__main__':
 
     # Generate the spectrum
     logging.info(f'Getting the wavelength range.')
-    wavelength, frequency, imager_response = generate_spectrum(imager, top_freq=5)
+    wavelength, frequency, imager_response = generate_spectrum(imager, n_freq=20)
     frequency_weight = np.ones_like(frequency)  # Weight of the frequencies
 
     # Load the mie model
@@ -70,9 +64,12 @@ if __name__ == '__main__':
         isl = IntegratedStarlight.load(integrated_starlight_path)
         isl.resize_skymap(nside, update=True)
         isl.interpolate_freq(frequency.to('Hz'), update=True)
-        isl_n_electrons = imager.intensity_to_number_of_electrons(isl.isl_map[..., None], wavelength=wavelength, weights=imager_response)
+
+        df, dw = np.gradient(frequency), -np.gradient(wavelength)
+        isl_map = isl.isl_map * (dw / df)[None, ...]
+        isl_map = np.stack([isl_map]*4, axis=-1)
     else:
-        isl_n_electrons = 0
+        isl_map = 0
 
     # Calculate the emission at pixels
     logging.info(f'Getting the binned emission.')
@@ -89,52 +86,23 @@ if __name__ == '__main__':
 
     # Calculate the polarization
     logging.info(f'Calculating the polarization.')
+    binned_emission = binned_emission + isl_map
     I, Q, U = estimate_IQU(binned_emission, polarization_angle)
     binned_dolp = estimate_DoLP(I, Q, U)
     binned_aop = estimate_AoP(Q, U)
 
     # Plot the emission of the first polarization angle
     logging.info(f'Plotting the emission of the first polarization angle.')
-    for ii in np.linspace(0, binned_emission.shape[-1], 4, endpoint=False, dtype=int):
-        hp.mollview(
-            binned_emission[..., 0, ii],
-            title="Binned zodiacal emission at {} with polarization angle {}".format(wavelength[0],np.round(polarization_angle[ii], 2)),
-            unit=str(binned_emission.unit),
-            min=0,
-            cmap="afmhot",
-            rot=(0, 0, 0)
-        )
-        hp.graticule()
-        plt.show()
+    plot_skymap_indices(binned_emission[..., 0, :], 4, title="Binned zodiacal emission", min=0)
 
     # plot the binned polarization
     logging.info(f'Plotting the binned polarization.')
-    hp.mollview(
-        binned_dolp[..., 0],
-        title="Binned zodiacal polarization at {}".format(wavelength[-1]),
-        unit="MJy/sr",
-        cmap="afmhot",
-        rot=(0, 0, 0)
-    )
-    hp.graticule()
-    plt.show()
-
-    hp.mollview(
-        binned_aop[..., 0],
-        title="Binned angle of polarization at {}".format(wavelength[-1]),
-        unit="MJy/sr",
-        cmap="afmhot",
-        min=-np.pi,
-        max=np.pi,
-        rot=(0, 0, 0)
-    )
-    hp.graticule()
-    plt.show()
+    plot_skymap(binned_dolp[..., 0], title="Binned zodiacal polarization", min=0, max=1)
+    plot_skymap(binned_aop[..., 0], title="Binned angle of polarization", min=-np.pi, max=np.pi)
 
     # Calculate the number of photons
     logging.info(f'Calculating the realistic image with noise.')
     n_electrons = imager.intensity_to_number_of_electrons(binned_emission, frequency=frequency, weights=imager_response)
-    n_electrons = n_electrons + isl_n_electrons
     n_electrons_noised = imager.imager_noise_model(n_electrons)
     camera_intensity = imager.number_of_electrons_to_intensity(n_electrons_noised, frequency, imager_response)
 
@@ -144,37 +112,8 @@ if __name__ == '__main__':
 
     # Plot the emission of the first polarization angle
     logging.info(f'Plotting the camera intensity of the first polarization angle.')
-    for ii in np.linspace(0, camera_intensity.shape[-1], 4, endpoint=False, dtype=int):
-        hp.mollview(
-            camera_intensity[..., ii],
-            title="Camera Intensity with polarization angle {}".format(np.round(polarization_angle[ii], 2)),
-            unit=str(camera_intensity.unit),
-            min=0,
-            cmap="afmhot",
-            rot=(0, 0, 0)
-        )
-        hp.graticule()
-        plt.show()
+    plot_skymap_indices(camera_intensity, 4, title="Camera Polarized Intensity", min=0)
 
     logging.info(f'Plotting the camera polarization.')
-    hp.mollview(
-        camera_dolp,
-        title="Camera polarization",
-        unit="MJy/sr",
-        cmap="afmhot",
-        rot=(0, 0, 0)
-    )
-    hp.graticule()
-    plt.show()
-
-    hp.mollview(
-        camera_aop,
-        title="Camera angle of polarization",
-        unit="MJy/sr",
-        cmap="afmhot",
-        min=-np.pi,
-        max=np.pi,
-        rot=(0, 0, 0)
-    )
-    hp.graticule()
-    plt.show()
+    plot_skymap(camera_dolp, title="Camera polarization", min=0, max=1)
+    plot_skymap(camera_aop, title="Camera angle of polarization", min=-np.pi, max=np.pi)
