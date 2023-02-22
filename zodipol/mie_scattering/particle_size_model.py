@@ -4,10 +4,10 @@ from zodipol.utils.math import normalize
 
 # default parameters
 DEFAULT_NUM_PARTICLES = 300  # number of particles in the particle size model
-MIN_PARTICLE_SIZE = 0.2  # particle min size in um
-MAX_PARTICLE_SIZE = 200  # particle max size in um
-BIG_PARTICLES_GAMMA = 4.4  # power law exponent for large particles
-SMALL_PARTICLES_GAMMA = 3  # power law exponent for small particles
+MIN_PARTICLE_SIZE = 0.009  # particle min size in um
+MAX_PARTICLE_SIZE = 2  # particle max size in um
+BIG_PARTICLES_GAMMA = 5.4  # power law exponent for large particles
+SMALL_PARTICLES_GAMMA = 4  # power law exponent for small particles
 CUTOFF_POINT = 20  # cutoff point for power law exponent
 
 

@@ -8,7 +8,7 @@ from astropy.time import Time
 from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 from zodipy_local.zodipy_local import Zodipy
 from zodipol.imager.imager import Imager
-from zodipol.background_radiation.integrated_starlight import IntegratedStarlight
+from zodipol.background_radiation import IntegratedStarlight, PlanetaryLight
 from zodipol.estimation.estimate_signal import estimate_IQU, estimate_DoLP, estimate_AoP
 from zodipol.visualization.skymap_plots import plot_skymap, plot_skymap_indices
 
@@ -36,6 +36,7 @@ if __name__ == '__main__':
     nside = 64  # Healpix resolution
     polarizance = 1  # Polarizance of the observation
     fov = 5  # deg
+    obs_time = Time("2022-06-14")  # Observation time
     polarization_angle = np.linspace(0, np.pi, 8, endpoint=False)  # Polarization angle of the observation
 
     # Initialize the model
@@ -67,7 +68,7 @@ if __name__ == '__main__':
 
         df, dw = np.gradient(frequency), -np.gradient(wavelength)
         isl_map = isl.isl_map * (dw / df)[None, ...]
-        isl_map = np.stack([isl_map]*4, axis=-1)
+        isl_map = np.stack([isl_map]*len(polarization_angle), axis=-1)
     else:
         isl_map = 0
 
@@ -78,7 +79,7 @@ if __name__ == '__main__':
         weights=frequency_weight,
         pixels=np.arange(hp.nside2npix(nside)),
         nside=nside,
-        obs_time=Time("2022-06-14"),
+        obs_time=obs_time,
         obs="earth",
         polarization_angle=polarization_angle,
         polarizance=polarizance,
@@ -93,12 +94,28 @@ if __name__ == '__main__':
 
     # Plot the emission of the first polarization angle
     logging.info(f'Plotting the emission of the first polarization angle.')
-    plot_skymap_indices(binned_emission[..., 0, :], 4, title="Binned zodiacal emission", min=0)
+    plot_skymap_indices(binned_emission[..., -1, :], 2, title="Binned zodiacal emission", min=0)
 
     # plot the binned polarization
     logging.info(f'Plotting the binned polarization.')
-    plot_skymap(binned_dolp[..., 0], title="Binned zodiacal polarization", min=0, max=1)
-    plot_skymap(binned_aop[..., 0], title="Binned angle of polarization", min=-np.pi, max=np.pi)
+    plot_skymap(binned_dolp[..., -1], title="Binned zodiacal polarization", min=0, max=1)
+    plot_skymap(binned_aop[..., -1], title="Binned angle of polarization", min=0, max=np.pi)
+
+    # plot unnoised camera response
+    n_electrons = imager.intensity_to_number_of_electrons(binned_emission, frequency=frequency, weights=imager_response)
+    n_electrons += imager.camera_dark_current_estimation()
+    n_electrons = imager.camera_post_process(n_electrons)
+    camera_intensity = imager.number_of_electrons_to_intensity(n_electrons, frequency, imager_response)
+    I, Q, U = estimate_IQU(camera_intensity, polarization_angle)
+    camera_dolp = estimate_DoLP(I, Q, U)
+    camera_aop = estimate_AoP(Q, U)
+
+    logging.info(f'Plotting the camera intensity of the first polarization angle.')
+    plot_skymap_indices(camera_intensity, 2, title="Camera Polarized Intensity", min=0)
+
+    logging.info(f'Plotting the camera polarization.')
+    plot_skymap(camera_dolp, title="Camera polarization", min=0, max=1)
+    plot_skymap(camera_aop, title="Camera angle of polarization", min=0, max=np.pi)
 
     # Calculate the number of photons
     logging.info(f'Calculating the realistic image with noise.')
@@ -112,8 +129,8 @@ if __name__ == '__main__':
 
     # Plot the emission of the first polarization angle
     logging.info(f'Plotting the camera intensity of the first polarization angle.')
-    plot_skymap_indices(camera_intensity, 4, title="Camera Polarized Intensity", min=0)
+    plot_skymap_indices(camera_intensity, 2, title="Camera Polarized Intensity", min=0)
 
     logging.info(f'Plotting the camera polarization.')
     plot_skymap(camera_dolp, title="Camera polarization", min=0, max=1)
-    plot_skymap(camera_aop, title="Camera angle of polarization", min=-np.pi, max=np.pi)
+    plot_skymap(camera_aop, title="Camera angle of polarization", min=0, max=np.pi)

@@ -349,6 +349,7 @@ class Zodipy:
         polarization_angle: float | list | np.ndarray = 0.0,
         polarizance: float = 0.5,
         mie_scattering_model: MieScatteringModel = None,
+        return_IQU: bool = False
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated binned zodiacal Emission given pixel numbers.
 
@@ -402,7 +403,8 @@ class Zodipy:
             return_comps=return_comps,
             polarization_angle=polarization_angle,
             polarizance=polarizance,
-            mie_scattering_model=mie_scattering_model
+            mie_scattering_model=mie_scattering_model,
+            return_IQU=return_IQU
         )
 
     def _compute_emission(
@@ -420,7 +422,8 @@ class Zodipy:
         return_comps: bool = False,
         polarization_angle: float | list | np.ndarray = 0.0,
         polarizance: float = 0.5,
-        mie_scattering_model: MieScatteringModel = None
+        mie_scattering_model: MieScatteringModel = None,
+        return_IQU: bool = False
     ) -> u.Quantity[u.MJy / u.sr]:
         """Compute the component-wise zodiacal emission."""
         logging.info('Started emission calculations')
@@ -575,11 +578,18 @@ class Zodipy:
         logging.info('Started polarization calculations')
         if not return_comps:
             emission = emission.sum(axis=0)
-        polarization_angle = np.broadcast_to(np.array(polarization_angle), emission.shape[:-1] + (len(polarization_angle),))
-        simulated_emission = (emission[..., 0][..., None] +
-                              polarizance * np.cos(2 * polarization_angle) * emission[..., 1][..., None] +
-                              polarizance * np.sin(2 * polarization_angle) * emission[..., 2][..., None])
+        if return_IQU:
+            return emission
+        I, U, Q = emission[..., 0], emission[..., 1], emission[..., 2]
+        simulated_emission = self.IUQ_to_image(I, U, Q, polarizance, polarization_angle)
         return simulated_emission
+
+    @staticmethod
+    def IUQ_to_image(I, U, Q, polarizance, polarization_angle):
+        image = (I[..., None] +
+                polarizance * np.cos(2 * polarization_angle) * Q[..., None] +
+                polarizance * np.sin(2 * polarization_angle) * U[..., None])
+        return image
 
     def __repr__(self) -> str:
         repr_str = f"{self.__class__.__name__}("

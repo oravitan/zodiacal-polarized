@@ -81,11 +81,11 @@ class Imager:
         # Calculate the number of electrons per pixel
         if frequency is not None:
             freq_gradient = np.gradient(frequency)
-            n_electrons = np.einsum('ijk,j->ik', energy, freq_gradient / (h * frequency) * weights)  # Number of electrons per frequency
+            n_electrons = np.einsum('ij...,j->i...', energy, freq_gradient / (h * frequency) * weights)  # Number of electrons per frequency
         else:
             frequency = wavelength.to(u.THz, equivalencies=u.spectral())
             wavelength_gradient = -np.gradient(wavelength)  # wavelength is sorted by frequency, so it inverse
-            n_electrons = np.einsum('ijk,j->ik', energy, wavelength_gradient / (h * frequency) * weights)
+            n_electrons = np.einsum('ij...,j->i...', energy, wavelength_gradient / (h * frequency) * weights)
 
         # n_electrons = np.sum(n_electrons_per_freq, axis=1)  # Number of electrons integral
         n_electrons = n_electrons.si  # Number of electrons in SI units
@@ -135,8 +135,14 @@ class Imager:
             n_electrons = self._dark_current_noise(n_electrons)
         if quantization_noise:
             n_electrons = self._quantization_noise(n_electrons)
-        n_electrons = np.clip(n_electrons, a_min=0, a_max=self.full_well)
+        n_electrons = self.camera_post_process(n_electrons)
         return n_electrons
+
+    def camera_post_process(self, n_electrons):
+        return np.clip(n_electrons, a_min=0, a_max=self.full_well)
+
+    def camera_dark_current_estimation(self):
+        return self.beta_t * self.exposure_time
 
     def _camera_poisson_noise(self, n_electrons):
         """
@@ -166,7 +172,7 @@ class Imager:
         :param n_electrons: number of electrons
         :return: number of electrons with dark current noise
         """
-        dark_current = - np.floor(
+        dark_current = np.floor(
             np.random.normal(self.beta_t * self.exposure_time, np.sqrt(self.beta_t * self.exposure_time), n_electrons.shape))
         return n_electrons + dark_current
 
@@ -179,5 +185,3 @@ class Imager:
         full_well_factor = 2 ** self.n_bits / self.full_well
         n_electrons_full_well = 1 / full_well_factor * np.floor(full_well_factor * n_electrons)
         return n_electrons_full_well
-
-
