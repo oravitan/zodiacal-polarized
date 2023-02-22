@@ -72,6 +72,10 @@ if __name__ == '__main__':
     else:
         isl_map = 0
 
+    planetary = PlanetaryLight()
+    planets_skymap = planetary.make_planets_map(nside, obs_time, wavelength)
+    planets_skymap = np.stack([planets_skymap] * len(polarization_angle), axis=-1)
+
     # Calculate the emission at pixels
     logging.info(f'Getting the binned emission.')
     binned_emission = model.get_binned_emission_pix(
@@ -87,7 +91,7 @@ if __name__ == '__main__':
 
     # Calculate the polarization
     logging.info(f'Calculating the polarization.')
-    binned_emission = binned_emission + isl_map
+    binned_emission = binned_emission + isl_map + planets_skymap
     I, Q, U = estimate_IQU(binned_emission, polarization_angle)
     binned_dolp = estimate_DoLP(I, Q, U)
     binned_aop = estimate_AoP(Q, U)
