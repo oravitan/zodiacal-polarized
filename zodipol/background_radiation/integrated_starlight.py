@@ -73,7 +73,7 @@ class IntegratedStarlight:
         np.savez(path,
                  isl_map=self.isl_map,
                  frequency=self.frequency,
-                 isl_units=skymap_flux.isl_map.unit.to_string())
+                 isl_units=self.isl_map.unit.to_string())
 
     @classmethod
     def load(cls, path):
@@ -144,7 +144,7 @@ class IntegratedStarlightFactory:
         self._reset_visier(columns=["GLON", "GLAT", "Jmag", "eJmag", "Hmag", "eHmag", "Kmag", "eKmag"])
         self.nside = nside
         self.pixels = np.arange(hp.nside2npix(nside))
-        self.pixel_size = hp.nside2pixarea(256, degrees=True) ** 0.5
+        self.pixel_size = hp.nside2pixarea(nside, degrees=True) ** 0.5
         self.focal_param = np.pi*(1/(2*focal_ratio))**2 * u.sr
 
     def _reset_visier(self, columns ="**"):
@@ -198,7 +198,8 @@ class IntegratedStarlightFactory:
               flux = p.starmap(self.estimate_direction_flux, tqdm(zip(lon, lat, repeat(frequency), repeat(width)), total=len(lon), disable=not show_tqdm))
         else:
             flux = [self.estimate_direction_flux(lon, lat, frequency, width) for lon, lat in tqdm(zip(lon, lat), total=len(lon), disable=not show_tqdm)]
-        isl = IntegratedStarlight(u.Quantity(flux), frequency)
+        flux_px = u.Quantity(flux) / self.pixel_size**2
+        isl = IntegratedStarlight(flux_px, frequency)
         return isl
 
     def process_query(self, result):
@@ -207,6 +208,7 @@ class IntegratedStarlightFactory:
         :param result: query result
         :return: flux
         """
+        result = result.dropna()
         j_flux = self.mag2flux(result["Jmag"], "J")
         h_flux = self.mag2flux(result["Hmag"], "H")
         k_flux = self.mag2flux(result["Kmag"], "Ks")
@@ -232,9 +234,9 @@ class IntegratedStarlightFactory:
         """
         # get the flux in the selected direction
         result = self.query_direction(lon, lat, width)
-        flux_default_freq = self.process_query(result)
-        if len(flux_default_freq) == 0:
+        if len(result) == 0:
             return 0 * u.Unit('nW / m^2 um sr')
+        flux_default_freq = self.process_query(result)
 
         # bootstrap the flux
         if flux_default_freq.shape[1] > resample_size:
@@ -250,7 +252,7 @@ class IntegratedStarlightFactory:
         temperature, flux_factor = self._estimate_temperatures(flux_sample, self.freq)
         flux_estimation = boltzman(flux_factor[:, None], temperature[:, None], frequency)
         total_freq_flux = total_flux_factor * flux_estimation.sum(axis=0)
-        return total_freq_flux * u.Unit('nW / m^2 um') / self.focal_param
+        return total_freq_flux * u.Unit('nW / m^2 um') / self.focal_param / self.pixel_size ** 2
 
     def mag2flux(self, mag, band):
         """
@@ -283,7 +285,7 @@ if __name__ == '__main__':
     wavelength = [300, 400, 500, 600, 700] * u.nm
     frequency = wavelength.to(u.Hz, equivalencies=u.spectral())
 
-    isf = IntegratedStarlightFactory(nside=8)
+    isf = IntegratedStarlightFactory(nside=32)
     skymap_flux = isf.build_skymap(frequency.value, parallel=True)
     skymap_flux.save("saved_models/skymap_flux.npz")
 
