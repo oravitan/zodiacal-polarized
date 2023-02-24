@@ -135,6 +135,10 @@ class Zodipy:
         lonlat: bool = False,
         return_comps: bool = False,
         coord_in: Literal["E", "G", "C"] = "E",
+        polarization_angle: float | list | np.ndarray = 0.0,
+        polarizance: float = 0.5,
+        mie_scattering_model: MieScatteringModel = None,
+        return_IQU: bool = False
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated zodiacal emission given angles on the sky.
 
@@ -164,6 +168,14 @@ class Zodipy:
             return_comps: If True, the emission is returned component-wise. Defaults to False.
             coord_in: Coordinate frame of the input pointing. Assumes 'E' (ecliptic
                 coordinates) by default.
+            polarization_angle: The angle of the polarization vector relative to the
+                direction of the source. If a sequence is given, the polarization angle
+                is assumed to be the same for all points. Defaults to 0.0.
+            polarizance: The polarizance of the dust grains. Defaults to 0.5.
+            mie_scattering_model: A `MieScatteringModel` instance. If None, the
+                `MieScatteringModel` is initialized with the default parameters.
+            return_IQU: If True, the Stokes I, Q, and U components are returned. Defaults to
+                False.
 
         Returns:
             emission: Simulated zodiacal emission in units of 'MJy/sr'.
@@ -190,6 +202,10 @@ class Zodipy:
             unit_vectors=unit_vectors,
             indicies=indicies,
             return_comps=return_comps,
+            polarization_angle=polarization_angle,
+            polarizance=polarizance,
+            mie_scattering_model=mie_scattering_model,
+            return_IQU=return_IQU
         )
 
     def get_emission_pix(
@@ -203,6 +219,10 @@ class Zodipy:
         weights: Sequence[float] | npt.NDArray[np.floating] | None = None,
         return_comps: bool = False,
         coord_in: Literal["E", "G", "C"] = "E",
+        polarization_angle: float | list | np.ndarray = 0.0,
+        polarizance: float = 0.5,
+        mie_scattering_model: MieScatteringModel = None,
+        return_IQU: bool = False
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated zodiacal emission given pixel numbers.
 
@@ -226,6 +246,14 @@ class Zodipy:
             return_comps: If True, the emission is returned component-wise. Defaults to False.
             coord_in: Coordinate frame of the input pointing. Assumes 'E' (ecliptic
                 coordinates) by default.
+            polarization_angle: The angle of the polarization vector relative to the
+                direction of the source. If a sequence is given, the polarization angle
+                is assumed to be the same for all points. Defaults to 0.0.
+            polarizance: The polarizance of the dust grains. Defaults to 0.5.
+            mie_scattering_model: A `MieScatteringModel` instance. If None, the
+                `MieScatteringModel` is initialized with the default parameters.
+            return_IQU: If True, the Stokes I, Q, and U components are returned. Defaults to
+                False.
 
         Returns:
             emission: Simulated zodiacal emission in units of 'MJy/sr'.
@@ -251,6 +279,10 @@ class Zodipy:
             pixels=unique_pixels,
             nside=nside,
             return_comps=return_comps,
+            polarization_angle=polarization_angle,
+            polarizance=polarizance,
+            mie_scattering_model=mie_scattering_model,
+            return_IQU=return_IQU
         )
 
     def get_binned_emission_ang(
@@ -268,7 +300,8 @@ class Zodipy:
         coord_in: Literal["E", "G", "C"] = "E",
         polarization_angle: float | list | np.ndarray = 0.0,
         polarizance: float = 0.5,
-        mie_scattering_model: MieScatteringModel = None
+        mie_scattering_model: MieScatteringModel = None,
+        return_IQU: bool = False
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated binned zodiacal emission given angles on the sky.
 
@@ -300,6 +333,14 @@ class Zodipy:
             return_comps: If True, the emission is returned component-wise. Defaults to False.
             coord_in: Coordinate frame of the input pointing. Assumes 'E' (ecliptic
                 coordinates) by default.
+            polarization_angle: The angle of the polarization vector relative to the
+                direction of the source. If a sequence is given, the polarization angle
+                is assumed to be the same for all points. Defaults to 0.0.
+            polarizance: The polarizance of the dust grains. Defaults to 0.5.
+            mie_scattering_model: A `MieScatteringModel` instance. If None, the
+                `MieScatteringModel` is initialized with the default parameters.
+            return_IQU: If True, the Stokes I, Q, and U components are returned. Defaults to
+                False.
 
         Returns:
             emission: Simulated zodiacal emission in units of 'MJy/sr'.
@@ -332,7 +373,8 @@ class Zodipy:
             return_comps=return_comps,
             polarization_angle=polarization_angle,
             polarizance=polarizance,
-            mie_scattering_model=mie_scattering_model
+            mie_scattering_model=mie_scattering_model,
+            return_IQU=return_IQU
         )
 
     def get_binned_emission_pix(
@@ -374,6 +416,14 @@ class Zodipy:
             return_comps: If True, the emission is returned component-wise. Defaults to False.
             coord_in: Coordinate frame of the input pointing. Assumes 'E' (ecliptic
                 coordinates) by default.
+            polarization_angle: The angle of the polarization vector relative to the
+                direction of the source. If a sequence is given, the polarization angle
+                is assumed to be the same for all points. Defaults to 0.0.
+            polarizance: The polarizance of the dust grains. Defaults to 0.5.
+            mie_scattering_model: A `MieScatteringModel` instance. If None, the
+                `MieScatteringModel` is initialized with the default parameters.
+            return_IQU: If True, the Stokes I, Q, and U components are returned. Defaults to
+                False.
 
         Returns:
             emission: Simulated zodiacal emission in units of 'MJy/sr'.
