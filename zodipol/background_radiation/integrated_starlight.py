@@ -99,6 +99,16 @@ class IntegratedStarlight:
         isl_map = np.nan_to_num(isl_map, nan=0)
         return isl_map
 
+    def get_ang(self, theta, phi):
+        """
+        Get the integrated starlight flux at a given angle
+        :param theta: theta angle
+        :param phi: phi angle
+        :return: integrated starlight flux
+        """
+        nside = hp.npix2nside(self.isl_map.shape[0])
+        return self.isl_map[hp.ang2pix(nside, theta, phi), ...]
+
     def interpolate_freq(self, new_frew, update=False):
         """
         Interpolate the integrated starlight flux to a new frequency
@@ -118,9 +128,11 @@ class IntegratedStarlight:
         :param nside: new nside
         :return: resized skymap
         """
-        upgraded_map = np.stack([hp.ud_grade(s, nside) for s in self.isl_map.T], axis=-1)
-        upgraded_map = upgraded_map * self.isl_map.unit
-        if update:
+        current_size = hp.npix2nside(self.isl_map.shape[0])  # current nside
+        res_factor = hp.nside2pixarea(current_size) / hp.nside2pixarea(nside)  # resolution factor
+        upgraded_map = np.stack([hp.ud_grade(s, nside) for s in self.isl_map.T], axis=-1)  # rescale the skymap
+        upgraded_map = res_factor * upgraded_map * self.isl_map.unit
+        if update:  # update the skymap
             self.isl_map = upgraded_map
         return upgraded_map
 
@@ -193,14 +205,31 @@ class IntegratedStarlightFactory:
         """
         width = width if width is not None else self.pixel_size * u.deg
         lon, lat = self.get_pixels_directions()
+        return self.build_dirmap(lon, lat, frequency=frequency, width=width, show_tqdm=show_tqdm, parallel=parallel)
+
+    def build_dirmap(self, lon, lat, frequency: float, width: u.Quantity = None, show_tqdm: bool = True, parallel: bool = True):
         if parallel:
             with Pool() as p:
-              flux = p.starmap(self.estimate_direction_flux, tqdm(zip(lon, lat, repeat(frequency), repeat(width)), total=len(lon), disable=not show_tqdm))
+                flux = p.starmap(self.estimate_direction_flux,
+                                 tqdm(zip(lon, lat, repeat(frequency), repeat(width)), total=len(lon),
+                                      disable=not show_tqdm))
         else:
-            flux = [self.estimate_direction_flux(lon, lat, frequency, width) for lon, lat in tqdm(zip(lon, lat), total=len(lon), disable=not show_tqdm)]
-        flux_px = u.Quantity(flux) / self.pixel_size**2
-        isl = IntegratedStarlight(flux_px, frequency)
+            flux = [self.estimate_direction_flux(lon, lat, frequency, width) for lon, lat in
+                    tqdm(zip(lon, lat), total=len(lon), disable=not show_tqdm)]
+        isl = IntegratedStarlight(u.Quantity(flux), frequency)
         return isl
+
+    # def build_fov(self, center_lon, center_lat, frequency: float, fov: u.Quantity, resolution, show_tqdm: bool = True, parallel: bool = True):
+    #     result = self.query_direction(center_lon, center_lat, fov)
+    #     x_res, y_res = fov.value / np.array(resolution)
+    #     min_lon, min_lat = center_lon - fov / 2, center_lat - fov / 2
+    #     result = result.assign(x=(np.rad2deg(np.angle(np.exp(1j*np.deg2rad(result.GLON) - 1j*np.deg2rad(min_lon)))) / x_res).astype(int),
+    #                            y=(np.rad2deg(np.angle(np.exp(1j*np.deg2rad(result.GLAT) - 1j*np.deg2rad(min_lat)))) / y_res).astype(int))
+    #     result = result[(result[["x", "y"]] >= 0).all(axis=1) & (result["x"] < resolution[1]) & (result["y"] < resolution[1])]
+    #
+    #     flux_px = u.Quantity(flux) / self.pixel_size ** 2
+    #     isl = IntegratedStarlight(flux_px, frequency)
+    #     return isl
 
     def process_query(self, result):
         """
@@ -222,7 +251,7 @@ class IntegratedStarlightFactory:
         """
         return hp.pix2ang(self.nside, self.pixels, lonlat=True)
 
-    def estimate_direction_flux(self, lon, lat, frequency, width=None, resample_size=100):
+    def estimate_direction_flux(self, lon, lat, frequency, width=None, resample_size=10):
         """
         Estimate the flux in a given direction
         :param lon: galactic longitude
@@ -285,7 +314,7 @@ if __name__ == '__main__':
     wavelength = [300, 400, 500, 600, 700] * u.nm
     frequency = wavelength.to(u.Hz, equivalencies=u.spectral())
 
-    isf = IntegratedStarlightFactory(nside=32)
+    isf = IntegratedStarlightFactory(nside=256)
     skymap_flux = isf.build_skymap(frequency.value, parallel=True)
     skymap_flux.save("saved_models/skymap_flux.npz")
 

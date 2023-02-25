@@ -1,2 +1,2 @@
-from zodipol.background_radiation.integrated_starlight import IntegratedStarlight
+from zodipol.background_radiation.integrated_starlight import IntegratedStarlight, IntegratedStarlightFactory
 from zodipol.background_radiation.planetary_light import PlanetaryLight

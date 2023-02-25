@@ -23,7 +23,7 @@ class Imager:
                  beta_t=3.51 * (u.s ** -1),
                  full_well=10500,
                  n_bits=10,
-                 ):
+                 resolution=(2448, 2048)):
         self.exposure_time = exposure_time
         self.pixel_area = pixel_area
         self.lens_diameter = lens_diameter
@@ -34,6 +34,7 @@ class Imager:
         self.beta_t = beta_t
         self.full_well = full_well
         self.n_bits = n_bits
+        self.resolution = resolution
 
     # ------------------------------------------------
     # ----------------- Response ---------------------
@@ -169,11 +170,11 @@ class Imager:
     def _dark_current_noise(self, n_electrons):
         """
         Add dark current noise to the number of electrons.
+        actual mean is self.beta_t * self.exposure_time, but we assume it's accounted for
         :param n_electrons: number of electrons
         :return: number of electrons with dark current noise
         """
-        dark_current = np.floor(
-            np.random.normal(self.beta_t * self.exposure_time, np.sqrt(self.beta_t * self.exposure_time), n_electrons.shape))
+        dark_current = np.floor(np.random.normal(0, np.sqrt(self.beta_t * self.exposure_time), n_electrons.shape))
         return n_electrons + dark_current
 
     def _quantization_noise(self, n_electrons):
@@ -185,3 +186,68 @@ class Imager:
         full_well_factor = 2 ** self.n_bits / self.full_well
         n_electrons_full_well = 1 / full_well_factor * np.floor(full_well_factor * n_electrons)
         return n_electrons_full_well
+
+    # ------------------------------------------------
+    # ------------- Birefringence model --------------
+    # ------------------------------------------------
+    def get_birefringence_mueller_matrix(self, birefringence_amount, birefringence_angle):
+        pol_mueller = self._get_birefringence_polarizer_mat(birefringence_amount)
+        pol_rotation = self._get_birefringence_angle_rotation_mat(birefringence_angle)
+        pol_rotation_inv = self._get_birefringence_angle_rotation_mat(-birefringence_angle)
+        mul1 = np.einsum('...ij,...jk->...ik', pol_mueller, pol_rotation)
+        mul2 = np.einsum('...ij,...jk->...ik', pol_rotation_inv, mul1)
+        return mul2
+
+    def _get_birefringence_angle_rotation_mat(self, birefringence_angle):
+        c2 = np.cos(2 * birefringence_angle)
+        s2 = np.sin(2 * birefringence_angle)
+        mueller = np.zeros(birefringence_angle.shape + (4, 4))
+        mueller[..., 0, 0] = 1
+        mueller[..., 1, 1] = c2
+        mueller[..., 1, 2] = -s2
+        mueller[..., 2, 1] = s2
+        mueller[..., 2, 2] = c2
+        mueller[..., 3, 3] = 1
+        return mueller
+
+    def _get_birefringence_polarizer_mat(self, birefringence_amount):
+        c = np.cos(birefringence_amount)
+        s = np.sin(birefringence_amount)
+        mueller = np.zeros(birefringence_amount.shape + (4, 4))
+        mueller[..., 0, 0] = 1
+        mueller[..., 1, 1] = 1
+        mueller[..., 2, 2] = c
+        mueller[..., 2, 3] = s
+        mueller[..., 3, 2] = -s
+        mueller[..., 3, 3] = c
+        return mueller
+
+    def _get_birefringence_amount(self, birefringence_amount=0.03, type='constant'):
+        """
+        Calculate the birefringence amount per-pixel
+        :return: birefringence amount
+        """
+        if type == 'constant':
+            return np.ones(self.resolution) * birefringence_amount
+        elif type == 'center':
+            raise NotImplementedError('Center birefringence is not implemented yet.')
+        elif type == 'linear':
+            raise NotImplementedError('Center birefringence is not implemented yet.')
+        else:
+            raise ValueError(f'Birefringence type \"{type}\"is not a valid type.')
+
+    def _get_birefringence_angle(self, birefringence_angle=0, type='constant'):
+        """
+        Calculate the birefringence angle per-pixel
+        :return: birefringence angle
+        """
+        if type == 'constant':
+            return np.ones(self.resolution) * birefringence_angle
+        elif type == 'center':
+            raise NotImplementedError('Center birefringence is not implemented yet.')
+        elif type == 'linear':
+            raise NotImplementedError('Center birefringence is not implemented yet.')
+        else:
+            raise ValueError(f'Birefringence type \"{type}\"is not a valid type.')
+
+

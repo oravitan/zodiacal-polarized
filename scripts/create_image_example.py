@@ -1,140 +1,61 @@
-import astropy.units as u
-import healpy as hp
-import numpy as np
 import logging
-import os
-from astropy.time import Time
 
-from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
-from zodipy_local.zodipy_local import Zodipy
-from zodipol.imager.imager import Imager
-from zodipol.background_radiation import IntegratedStarlight, PlanetaryLight
-from zodipol.estimation.estimate_signal import estimate_IQU, estimate_DoLP, estimate_AoP
-from zodipol.visualization.skymap_plots import plot_skymap, plot_skymap_indices
+from zodipol.utils.argparser import ArgParser
+from zodipol.zodipol import Zodipol, Observation
+from zodipol.visualization.skymap_plots import plot_satellite_image, plot_satellite_image_indices
 
 logging_format = '%(asctime)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=logging_format)
 
 
-def generate_spectrum(imager, n_freq=5):
-    wavelength_range = imager.get_wavelength_range('red').values * u.nm
-    frequency_range = wavelength_range.to(u.THz, equivalencies=u.spectral())  # Frequency of the observation
-    imager_response = imager.get_camera_response(wavelength_range.value, 'red')
-
-    f_min = max(frequency_range.min(), 489 * u.THz)
-    f_max = min(frequency_range.max(), 995 * u.THz)
-    frequency = np.linspace(f_min, f_max, n_freq, endpoint=True)
-    wavelength_interp = frequency.to(u.nm, equivalencies=u.spectral())
-    imager_response_interp = np.interp(wavelength_interp, wavelength_range, imager_response)
-
-    return wavelength_interp, frequency, imager_response_interp
-
-
 if __name__ == '__main__':
     # set params
     logging.info(f'Started run.')
-    nside = 64  # Healpix resolution
-    polarizance = 1  # Polarizance of the observation
-    fov = 5  # deg
-    obs_time = Time("2022-06-14")  # Observation time
-    polarization_angle = np.linspace(0, np.pi, 8, endpoint=False)  # Polarization angle of the observation
+    parser = ArgParser()
 
-    # Initialize the model
-    logging.info(f'Initializing the model.')
-    imager = Imager()
-    model = Zodipy("dirbe", solar_cut=30 * u.deg, extrapolate=True, parallel=True)  # Initialize the model
-
-    # Generate the spectrum
-    logging.info(f'Getting the wavelength range.')
-    wavelength, frequency, imager_response = generate_spectrum(imager, n_freq=20)
-    frequency_weight = np.ones_like(frequency)  # Weight of the frequencies
-
-    # Load the mie model
-    mie_model_path = 'saved_models/white_light_mie_model.npz'
-    if os.path.isfile(mie_model_path):
-        logging.info(f'Loading the mie model: {mie_model_path}')
-        mie_model = MieScatteringModel.load(mie_model_path)
-    else:
-        spectrum = np.logspace(np.log10(300), np.log10(700), 20)  # white light wavelength in nm
-        mie_model = MieScatteringModel.train(spectrum)
-
-    # Load the integrated starlight model
-    integrated_starlight_path = 'saved_models/skymap_flux.npz'
-    if os.path.isfile(integrated_starlight_path):
-        logging.info(f'Loading the integrated starlight model: {integrated_starlight_path}')
-        isl = IntegratedStarlight.load(integrated_starlight_path)
-        isl.resize_skymap(nside, update=True)
-        isl.interpolate_freq(frequency.to('Hz'), update=True)
-
-        df, dw = np.gradient(frequency), -np.gradient(wavelength)
-        isl_map = isl.isl_map * (dw / df)[None, ...]
-        isl_map = np.stack([isl_map]*len(polarization_angle), axis=-1)
-    else:
-        isl_map = 0
-
-    planetary = PlanetaryLight()
-    planets_skymap = planetary.make_planets_map(nside, obs_time, wavelength)
-    planets_skymap = np.stack([planets_skymap] * len(polarization_angle), axis=-1)
-
-    # Calculate the emission at pixels
-    logging.info(f'Getting the binned emission.')
-    binned_emission = model.get_binned_emission_pix(
-        frequency,
-        weights=frequency_weight,
-        pixels=np.arange(hp.nside2npix(nside)),
-        nside=nside,
-        obs_time=obs_time,
-        obs="earth",
-        polarization_angle=polarization_angle,
-        polarizance=polarizance,
-        mie_scattering_model=mie_model)
+    zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"], n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"], n_freq=parser["n_freq"],
+                      planetary=parser["planetry"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"])
+    obs = zodipol.create_observation(theta=parser["direction"][0], phi=parser["direction"][1], lonlat=False, new_isl=parser["new_isl"])
 
     # Calculate the polarization
     logging.info(f'Calculating the polarization.')
-    binned_emission = binned_emission + isl_map + planets_skymap
-    I, Q, U = estimate_IQU(binned_emission, polarization_angle)
-    binned_dolp = estimate_DoLP(I, Q, U)
-    binned_aop = estimate_AoP(Q, U)
+    binned_emission = obs.get_binned_emission(parser["polarization_angle"], parser["polarizance"])
+    binned_dolp = obs.get_dolp()
+    binned_aop = obs.get_aop()
 
     # Plot the emission of the first polarization angle
     logging.info(f'Plotting the emission of the first polarization angle.')
-    plot_skymap_indices(binned_emission[..., -1, :], 2, title="Binned zodiacal emission", min=0)
+    plot_satellite_image_indices(binned_emission[..., -1, :], 2, resolution=parser["resolution"], title="Binned zodiacal emission")
 
     # plot the binned polarization
     logging.info(f'Plotting the binned polarization.')
-    plot_skymap(binned_dolp[..., -1], title="Binned zodiacal polarization", min=0, max=1)
-    plot_skymap(binned_aop[..., -1], title="Binned angle of polarization", min=0, max=np.pi)
+    plot_satellite_image(binned_dolp[..., -1], resolution=parser["resolution"], title="Binned zodiacal polarization")
+    plot_satellite_image(binned_aop[..., -1], resolution=parser["resolution"], title="Binned angle of polarization")
 
     # plot unnoised camera response
-    n_electrons = imager.intensity_to_number_of_electrons(binned_emission, frequency=frequency, weights=imager_response)
-    n_electrons += imager.camera_dark_current_estimation()
-    n_electrons = imager.camera_post_process(n_electrons)
-    camera_intensity = imager.number_of_electrons_to_intensity(n_electrons, frequency, imager_response)
-    I, Q, U = estimate_IQU(camera_intensity, polarization_angle)
-    camera_dolp = estimate_DoLP(I, Q, U)
-    camera_aop = estimate_AoP(Q, U)
+    camera_intensity = zodipol.make_camera_images(obs, n_realizations=parser["n_realizations"], add_noise=False)
+    obs_camera_intensity = Observation.from_image(camera_intensity, parser["polarization_angle"])
+    camera_dolp = obs_camera_intensity.get_dolp()
+    camera_aop = obs_camera_intensity.get_aop()
 
     logging.info(f'Plotting the camera intensity of the first polarization angle.')
-    plot_skymap_indices(camera_intensity, 2, title="Camera Polarized Intensity", min=0)
+    plot_satellite_image_indices(camera_intensity, 2, resolution=parser["resolution"], title="Camera Polarized Intensity")
 
     logging.info(f'Plotting the camera polarization.')
-    plot_skymap(camera_dolp, title="Camera polarization", min=0, max=1)
-    plot_skymap(camera_aop, title="Camera angle of polarization", min=0, max=np.pi)
+    plot_satellite_image(camera_dolp, resolution=parser["resolution"], title="Camera polarization")
+    plot_satellite_image(camera_aop, resolution=parser["resolution"], title="Camera angle of polarization")
 
     # Calculate the number of photons
     logging.info(f'Calculating the realistic image with noise.')
-    n_electrons = imager.intensity_to_number_of_electrons(binned_emission, frequency=frequency, weights=imager_response)
-    n_electrons_noised = imager.imager_noise_model(n_electrons)
-    camera_intensity = imager.number_of_electrons_to_intensity(n_electrons_noised, frequency, imager_response)
-
-    I, Q, U = estimate_IQU(camera_intensity, polarization_angle)
-    camera_dolp = estimate_DoLP(I, Q, U)
-    camera_aop = estimate_AoP(Q, U)
+    camera_intensity_noise = zodipol.make_camera_images(obs, n_realizations=parser["n_realizations"], add_noise=True)
+    obs_camera_intensity_noise = Observation.from_image(camera_intensity_noise, parser["polarization_angle"])
+    camera_dolp_noise = obs_camera_intensity_noise.get_dolp()
+    camera_aop_noise = obs_camera_intensity_noise.get_aop()
 
     # Plot the emission of the first polarization angle
     logging.info(f'Plotting the camera intensity of the first polarization angle.')
-    plot_skymap_indices(camera_intensity, 2, title="Camera Polarized Intensity", min=0)
+    plot_satellite_image_indices(camera_intensity_noise, 4, resolution=parser["resolution"], title="Camera Noised Polarized Intensity")
 
     logging.info(f'Plotting the camera polarization.')
-    plot_skymap(camera_dolp, title="Camera polarization", min=0, max=1)
-    plot_skymap(camera_aop, title="Camera angle of polarization", min=0, max=np.pi)
+    plot_satellite_image(camera_dolp_noise, resolution=parser["resolution"], title="Camera Noised polarization")
+    plot_satellite_image(camera_aop_noise, resolution=parser["resolution"], title="Camera Noised angle of polarization")

@@ -39,6 +39,16 @@ class PlanetaryLight:
             time = Time(time)
         return time
 
+    def get_ang(self, time, theta, phi, wavelength, nside=64):
+        """
+        Get the integrated starlight flux at a given angle
+        :param theta: theta angle
+        :param phi: phi angle
+        :return: integrated starlight flux
+        """
+        planets_map = self.make_planets_map(nside, time, wavelength)
+        return planets_map[hp.ang2pix(nside, theta, phi), ...]
+
     def make_planets_map(self, nside: int, time: str | Time, wavelength):
         planet_flux = self.get_all_planet_flux(time, wavelength)
         sky_map = np.zeros((hp.nside2npix(nside), len(wavelength),)) * u.Unit('W / m^2 Hz sr')

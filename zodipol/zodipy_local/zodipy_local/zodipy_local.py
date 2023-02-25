@@ -631,15 +631,8 @@ class Zodipy:
         if return_IQU:
             return emission
         I, U, Q = emission[..., 0], emission[..., 1], emission[..., 2]
-        simulated_emission = self.IUQ_to_image(I, U, Q, polarizance, polarization_angle)
+        simulated_emission = IQU_to_image(I, Q, U, polarizance, polarization_angle)
         return simulated_emission
-
-    @staticmethod
-    def IUQ_to_image(I, U, Q, polarizance, polarization_angle):
-        image = (I[..., None] +
-                polarizance * np.cos(2 * polarization_angle) * Q[..., None] +
-                polarizance * np.sin(2 * polarization_angle) * U[..., None])
-        return image
 
     def __repr__(self) -> str:
         repr_str = f"{self.__class__.__name__}("
@@ -649,6 +642,13 @@ class Zodipy:
             repr_str += f"{attribute_name}={attribute!r}, "
 
         return repr_str[:-2] + ")"
+
+
+def IQU_to_image(I, Q, U, polarizance, polarization_angle):
+    image = (I[..., None] +
+            polarizance * np.cos(2 * polarization_angle) * Q[..., None] +
+            polarizance * np.sin(2 * polarization_angle) * U[..., None])
+    return image
 
 
 def _integrate_gauss_quad(
