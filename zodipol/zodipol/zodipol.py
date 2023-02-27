@@ -59,7 +59,7 @@ class Zodipol:
                                                               polarization_angle=self.polarization_angle,
                                                               polarizance=self.polarizance, return_IQU=True)
         isl_map = self._get_integrated_starlight_map(nside)
-        planets_skymap = self.planetary.make_planets_map(nside, obs_time, self.wavelength)
+        planets_skymap = self._get_planetary_light_map(nside, obs_time)
         binned_emission = binned_emission + isl_map + planets_skymap
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
         return Observation(I, Q, U)

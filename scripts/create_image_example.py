@@ -59,3 +59,10 @@ if __name__ == '__main__':
     logging.info(f'Plotting the camera polarization.')
     plot_satellite_image(camera_dolp_noise, resolution=parser["resolution"], title="Camera Noised polarization")
     plot_satellite_image(camera_aop_noise, resolution=parser["resolution"], title="Camera Noised angle of polarization")
+
+    # Add imager birefringence to the received image
+    logging.info(f'Adding imager birefringence to the received image.')
+    biref_amount = zodipol.imager._get_birefringence_mat(0.1, 'center', flat=True, std=3)
+    biref_angle = zodipol.imager._get_birefringence_mat(0.1, 'constant', flat=True)
+    biref_mueller = zodipol.imager.get_birefringence_mueller_matrix(biref_amount, biref_angle)
+    biref_obs = zodipol.imager.apply_birefringence(obs, biref_mueller)
