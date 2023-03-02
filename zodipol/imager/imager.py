@@ -193,7 +193,7 @@ class Imager:
     # ------------- Birefringence model --------------
     # ------------------------------------------------
     def apply_birefringence(self, obs, biref_mat):
-        observation_mat = np.stack([obs.I, obs.Q, obs.U, np.zeros_like(obs.I)], axis=-1)
+        observation_mat = obs.to_numpy()
         observation_biref = np.einsum('...ij,...jk->...ik', biref_mat[:, None, ...], observation_mat[..., None])
         I, Q, U = observation_biref[..., 0, 0], observation_biref[..., 1, 0], observation_biref[..., 2, 0]
         return Observation(I, Q, U, theta=obs.theta, phi=obs.phi)
@@ -230,7 +230,7 @@ class Imager:
         mueller[..., 3, 3] = c
         return mueller
 
-    def _get_birefringence_mat(self, value=0.5, type='constant', flat=False, **kwargs):
+    def get_birefringence_mat(self, value=0.5, type='constant', flat=False, **kwargs):
         """
         Calculate the birefringence amount per-pixel
         :return: birefringence amount
@@ -244,6 +244,8 @@ class Imager:
             x, y = np.meshgrid(*(np.linspace(0, 1, r) for r in self.resolution))
             biref_value = norm.pdf(np.dstack((x.T, y.T)))
             biref_value = value * (biref_value - biref_value.min()) / (biref_value.max() - biref_value.min())
+            if 'inv' in kwargs and kwargs['inv']:
+                biref_value = value - biref_value
         elif type == 'sine':
             raise NotImplementedError('Center birefringence is not implemented yet.')
         else:

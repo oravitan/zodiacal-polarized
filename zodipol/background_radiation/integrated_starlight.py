@@ -314,7 +314,7 @@ if __name__ == '__main__':
     wavelength = [300, 400, 500, 600, 700] * u.nm
     frequency = wavelength.to(u.Hz, equivalencies=u.spectral())
 
-    isf = IntegratedStarlightFactory(nside=256)
+    isf = IntegratedStarlightFactory(nside=32)
     skymap_flux = isf.build_skymap(frequency.value, parallel=True)
     skymap_flux.save("saved_models/skymap_flux.npz")
 
@@ -324,7 +324,7 @@ if __name__ == '__main__':
     hp.mollview(
         skymap_flux.isl_map[:, -1],
         title='Integrated Starlight',
-        unit=str(u.nW / u.m ** 2 / u.nm / u.sr),
+        unit=str(skymap_flux.isl_map.unit),
         cmap="afmhot",
         rot=(0, 0, 0)
     )

@@ -28,7 +28,7 @@ def plot_skymap_indices(skymap, n_plots, title=None, **kwargs):
         plot_skymap(skymap[..., ii], title=title + " at index {}".format(ii), **kwargs)
 
 
-def plot_skymap(skymap, title=None, **kwargs):
+def plot_skymap(skymap, title=None, saveto=None, **kwargs):
     title = title if title is not None else ""
     hp.mollview(
         skymap,
@@ -38,5 +38,7 @@ def plot_skymap(skymap, title=None, **kwargs):
         **kwargs
     )
     hp.graticule()
+    if saveto is not None:
+        plt.savefig(saveto)
     plt.show()
 

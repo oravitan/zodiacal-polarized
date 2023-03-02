@@ -14,3 +14,10 @@ def make_sorted(ll, *args):
     ll = ll[ll_sorted]
     args = [arg[ll_sorted] for arg in args]
     return ll, *args
+
+
+# vector calculations
+def get_rotation_matrix(v, theta):
+    x, y, z = v
+    W = np.array([[0, -z, y], [z, 0, -x], [-y, x, 0]])
+    return np.eye(3) + np.sin(theta) * W + (1 - np.cos(theta)) * W @ W

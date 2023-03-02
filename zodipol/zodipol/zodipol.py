@@ -8,6 +8,7 @@ from astropy.time import Time
 from zodipol.zodipol.observation import Observation
 from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 from zodipy_local.zodipy_local import Zodipy, IQU_to_image
+from zodipol.utils.math import get_rotation_matrix
 from zodipol.imager.imager import Imager
 from zodipol.background_radiation import IntegratedStarlight, PlanetaryLight, IntegratedStarlightFactory
 
@@ -36,10 +37,10 @@ class Zodipol:
         self.isl = (self._set_integrated_starlight(integrated_starlight_path=integrated_starlight_path) if isl is True else None)  # Initialize the integrated starlight model
         self.planetary = (PlanetaryLight() if planetary is True else None)
 
-    def create_observation(self, theta: u.Quantity, phi: u.Quantity,
+    def create_observation(self, theta: u.Quantity, phi: u.Quantity, roll: u.Quantity = 0 * u.deg,
                            obs_time: Time | str = Time("2022-06-14"), lonlat: bool = False, new_isl=False):
         obs_time = (Time(obs_time) if not isinstance(obs_time, Time) else obs_time)  # Observation time
-        theta_vec, phi_vec = self._create_sky_coords(theta=theta, phi=phi, resolution=self.imager.resolution)
+        theta_vec, phi_vec = self._create_sky_coords(theta=theta, phi=phi, roll=roll, resolution=self.imager.resolution)
         binned_emission = self.zodipy.get_emission_ang(self.frequency, theta_vec, phi_vec,
                                                               obs_time=obs_time, mie_scattering_model=self.mie_model,
                                                               weights=self.frequency_weight, lonlat=lonlat,
@@ -77,30 +78,38 @@ class Zodipol:
         """
         polarizance = polarizance if polarizance is not None else self.polarizance
         polarization_angle = polarization_angle if polarization_angle is not None else self.polarization_angle
-        binned_emission_real = IQU_to_image(obs.I, obs.Q, obs.U, polarizance, polarization_angle)
+        realization_list = []  # List of the realizations
+        for ii in range(n_realizations):  # take multiple relatizations of the projection
+            binned_emission_real = IQU_to_image(obs.I, obs.Q, obs.U, polarizance, polarization_angle)
 
-        # Calculate the number of photons
-        n_electrons_real = self.imager.intensity_to_number_of_electrons(binned_emission_real, frequency=self.frequency, weights=self.imager_response)
-        n_electrons_list = []  # List of the realizations
-        for i in range(n_realizations):  # take multiple relatizations of the projection
+            # Calculate the number of photons
+            n_electrons_real = self.imager.intensity_to_number_of_electrons(binned_emission_real, frequency=self.frequency, weights=self.imager_response)
             if add_noise:  # Add noise to the image
                 n_electrons_real = self.imager.imager_noise_model(n_electrons_real)
             else:  # assume no image noise
                 # n_electrons_real += self.imager.camera_dark_current_estimation()
                 n_electrons_real = self.imager.camera_post_process(n_electrons_real)
-            n_electrons_list.append(n_electrons_real)
-        n_electrons_mean = np.stack(n_electrons_list, axis=-1).mean(axis=-1)  # Mean of the realizations
-        camera_intensity_real = self.imager.number_of_electrons_to_intensity(n_electrons_mean, self.frequency, self.imager_response)
-        if fillna is not None:
-            camera_intensity_real = np.nan_to_num(camera_intensity_real, nan=fillna * camera_intensity_real.unit)
-        return camera_intensity_real
+            camera_intensity_real = self.imager.number_of_electrons_to_intensity(n_electrons_real, self.frequency, self.imager_response)
+            if fillna is not None:
+                camera_intensity_real = np.nan_to_num(camera_intensity_real, nan=fillna * camera_intensity_real.unit)
+            realization_list.append(camera_intensity_real)
+        camera_intensity_mean = np.stack(realization_list, axis=-1).mean(axis=-1)  # Mean of the realizations
+        return camera_intensity_mean
 
-    def _create_sky_coords(self, theta: u.Quantity, phi: u.Quantity, resolution=(2448, 2048)):
-        theta_vec = np.linspace(theta - self.fov / 2, theta + self.fov / 2, resolution[1])
-        phi_vec = np.linspace(phi - self.fov / 2, phi + self.fov / 2, resolution[0])
-        theta_mat, phi_mat = np.meshgrid(theta_vec, phi_vec)
+    def _create_sky_coords(self, theta: u.Quantity, phi: u.Quantity, roll: u.Quantity = 0*u.deg, resolution=(2448, 2048)):
+        # Create the sky coordinates
+        theta_vec = np.linspace(- self.fov / 2, self.fov / 2, resolution[1])
+        phi_vec = np.linspace(- self.fov / 2, self.fov / 2, resolution[0])
+        theta_mat, phi_mat = np.meshgrid(theta + theta_vec, phi + phi_vec)
         theta_v, phi_v = theta_mat.flatten(), phi_mat.flatten()
-        theta_v = abs(180*u.deg - abs(180*u.deg - theta_v))  # Flip the theta axis to the correct direction
+        theta_v = abs(180 * u.deg - abs(180 * u.deg - theta_v))  # Flip the theta axis to the correct direction
+
+        # Rotate the coordinates according to the roll angle
+        rot_vec = hp.ang2vec(theta.to("rad"), phi.to("rad"))
+        vecs = hp.ang2vec(theta_v.to('rad'), phi_v.to('rad'))
+        vecs_rot = (get_rotation_matrix(rot_vec, roll) @ vecs.T).T
+        theta_v, phi_v = hp.vec2ang(vecs_rot.value) * u.rad
+
         return theta_v, phi_v
 
     def _set_mie_model(self, mie_model_path=MIE_MODEL_DEFAULT_PATH):
