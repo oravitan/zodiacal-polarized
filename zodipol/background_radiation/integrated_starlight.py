@@ -235,7 +235,7 @@ class IntegratedStarlightFactory:
         # get the flux in the selected direction
         result = self.query_direction(lon, lat, width)
         if len(result) == 0:
-            return 0 * u.Unit('nW / m^2 um sr')
+            return np.zeros(frequency.shape) * u.Unit('nW / m^2 um sr')
         flux_default_freq = self.process_query(result)
 
         # bootstrap the flux
