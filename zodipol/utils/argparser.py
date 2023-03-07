@@ -34,7 +34,7 @@ class ArgParser:
         parser.add_argument('--resolution', '-res', type=int, nargs=2, default=(612, 512), help='Resolution of imager')
         parser.add_argument('--direction', '-dir', type=float, nargs=2, default=(90, 0), help='Direction of imager (theta, phi) in deg')
         parser.add_argument('--obs_time', '-t', type=str, default="2022-06-14",  help='Observation time')
-        parser.add_argument('--planetry', '-p', action='store_true', help='Include planetry emission')
+        parser.add_argument('--planetary', '-p', action='store_true', help='Include planetary emission')
         parser.add_argument('--isl', '-i', action='store_true', help='Include interstellar emission')
         parser.add_argument('--new_isl', '-ni', action='store_true', help='Create new interstellar emission')
         parser.add_argument('--parallel', '-par', action='store_true', help='Use parallel processing')

@@ -3,7 +3,7 @@ import healpy as hp
 import matplotlib.pyplot as plt
 
 
-def plot_satellite_image(image, title=None, resolution=None, **kwargs):
+def plot_satellite_image(image, title=None, resolution=None, saveto=None, **kwargs):
     title = title if title is not None else ""
     unit = str(image.unit) if hasattr(image, "unit") else ""
     image = image.value if hasattr(image, "value") else image
@@ -13,6 +13,8 @@ def plot_satellite_image(image, title=None, resolution=None, **kwargs):
     plt.title(title)
     cbar = plt.colorbar()
     cbar.set_label(f"{unit}")
+    if saveto is not None:
+        plt.savefig(saveto)
     plt.show()
 
 

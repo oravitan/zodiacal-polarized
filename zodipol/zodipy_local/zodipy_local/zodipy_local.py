@@ -645,7 +645,7 @@ class Zodipy:
 
 
 def IQU_to_image(I, Q, U, polarizance, polarization_angle):
-    image = (I[..., None] +
+    image = 0.5 * (I[..., None] +
             polarizance * np.cos(2 * polarization_angle) * Q[..., None] +
             polarizance * np.sin(2 * polarization_angle) * U[..., None])
     return image

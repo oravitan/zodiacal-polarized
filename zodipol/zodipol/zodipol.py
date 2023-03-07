@@ -48,8 +48,8 @@ class Zodipol:
                                                               polarizance=self.polarizance, return_IQU=True)
         isl_map = self._get_integrated_starlight_ang(theta_vec, phi_vec, new_isl=new_isl, width=self.fov / min(self.imager.resolution))
         planets_skymap = self._get_planetary_light_ang(theta_vec, phi_vec, obs_time)
-        binned_emission = binned_emission + planets_skymap + isl_map
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
+        I += planets_skymap + isl_map
         return Observation(I, Q, U, theta=theta_vec, phi=phi_vec)
 
     def create_full_sky_observation(self, nside: int = 64, obs_time: Time | str = Time("2022-06-14"),):
@@ -61,12 +61,12 @@ class Zodipol:
                                                               polarizance=self.polarizance, return_IQU=True)
         isl_map = self._get_integrated_starlight_map(nside)
         planets_skymap = self._get_planetary_light_map(nside, obs_time)
-        binned_emission = binned_emission + isl_map + planets_skymap
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
+        I += planets_skymap + isl_map
         return Observation(I, Q, U)
 
     def make_camera_images(self, obs: Observation, polarizance=None, polarization_angle=None, add_noise=True,
-                           n_realizations=1, fillna=None):
+                           n_realizations=1, fillna=None, noise_params: dict = None):
         """
         Make a camera image from frequency-dependent the observation
         :param obs: Observation of the sky
@@ -78,6 +78,7 @@ class Zodipol:
         """
         polarizance = polarizance if polarizance is not None else self.polarizance
         polarization_angle = polarization_angle if polarization_angle is not None else self.polarization_angle
+        noise_params = (noise_params if noise_params is not None else {})
         realization_list = []  # List of the realizations
         for ii in range(n_realizations):  # take multiple relatizations of the projection
             binned_emission_real = IQU_to_image(obs.I, obs.Q, obs.U, polarizance, polarization_angle)
@@ -85,9 +86,9 @@ class Zodipol:
             # Calculate the number of photons
             n_electrons_real = self.imager.intensity_to_number_of_electrons(binned_emission_real, frequency=self.frequency, weights=self.imager_response)
             if add_noise:  # Add noise to the image
-                n_electrons_real = self.imager.imager_noise_model(n_electrons_real)
+                n_electrons_real = self.imager.imager_noise_model(n_electrons_real, **noise_params)
             else:  # assume no image noise
-                # n_electrons_real += self.imager.camera_dark_current_estimation()
+                n_electrons_real += self.imager.camera_dark_current_estimation()
                 n_electrons_real = self.imager.camera_post_process(n_electrons_real)
             camera_intensity_real = self.imager.number_of_electrons_to_intensity(n_electrons_real, self.frequency, self.imager_response)
             if fillna is not None:
@@ -135,7 +136,7 @@ class Zodipol:
         isl_map = self.isl.resize_skymap(nside)
         df, dw = np.gradient(self.frequency), -np.gradient(self.wavelength)
         isl_map = isl_map * (dw / df)[None, ...]
-        isl_map = np.stack([isl_map] * len(self.polarization_angle), axis=-1)
+        # isl_map = np.stack([isl_map] * len(self.polarization_angle), axis=-1)
         return isl_map
 
     def _get_integrated_starlight_ang(self, theta: u.Quantity, phi: u.Quantity, new_isl=False, width=None):
@@ -151,21 +152,21 @@ class Zodipol:
 
         df, dw = np.gradient(self.frequency), -np.gradient(self.wavelength)
         isl_map = isl_map * (dw / df)[None, ...]
-        isl_map = np.stack([isl_map] * len(self.polarization_angle), axis=-1)
+        # isl_map = np.stack([isl_map] * len(self.polarization_angle), axis=-1)
         return isl_map
 
     def _get_planetary_light_map(self, nside: int, obs_time):
         if self.planetary is None:
             return 0
         planets_skymap = self.planetary.make_planets_map(nside, obs_time, self.wavelength)
-        planets_skymap = np.stack([planets_skymap] * len(self.polarization_angle), axis=-1)
+        # planets_skymap = np.stack([planets_skymap] * len(self.polarization_angle), axis=-1)
         return planets_skymap
 
     def _get_planetary_light_ang(self, theta: u.Quantity, phi: u.Quantity, obs_time):
         if self.planetary is None:
             return 0
         planets_skymap = self.planetary.get_ang(obs_time, theta.to('rad').value, phi.to('rad').value, self.wavelength)
-        planets_skymap = np.stack([planets_skymap] * len(self.polarization_angle), axis=-1)
+        # planets_skymap = np.stack([planets_skymap] * len(self.polarization_angle), axis=-1)
         return planets_skymap
 
     def _set_imager_spectrum(self, n_freq=5):

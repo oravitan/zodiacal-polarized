@@ -176,7 +176,8 @@ class Imager:
         :param n_electrons: number of electrons
         :return: number of electrons with dark current noise
         """
-        dark_current = np.floor(np.random.normal(0, np.sqrt(self.beta_t * self.exposure_time), n_electrons.shape))
+        center = self.camera_dark_current_estimation()
+        dark_current = np.floor(np.random.normal(center, (self.beta_t * self.exposure_time)**0.25, n_electrons.shape))
         return n_electrons + dark_current
 
     def _quantization_noise(self, n_electrons):
@@ -185,8 +186,8 @@ class Imager:
         :param n_electrons: number of electrons
         :return: number of electrons with full well noise
         """
-        full_well_factor = 2 ** self.n_bits / self.full_well
-        n_electrons_full_well = 1 / full_well_factor * np.floor(full_well_factor * n_electrons)
+        full_well_factor = (2 ** self.n_bits) / self.full_well
+        n_electrons_full_well = (1 / full_well_factor) * np.round(full_well_factor * n_electrons)
         return n_electrons_full_well
 
     # ------------------------------------------------
@@ -246,6 +247,12 @@ class Imager:
             biref_value = value * (biref_value - biref_value.min()) / (biref_value.max() - biref_value.min())
             if 'inv' in kwargs and kwargs['inv']:
                 biref_value = value - biref_value
+        elif type == 'linear':
+            angle = kwargs["angle"] if "angle" in kwargs else 0
+            min_v = kwargs["min"] if "min" in kwargs else -value
+            x, y = np.meshgrid(np.linspace(min_v, value, self.resolution[0]),
+                               np.linspace(min_v, value, self.resolution[1]), indexing='ij')
+            biref_value = x * np.cos(angle) - y * np.sin(angle)
         elif type == 'sine':
             raise NotImplementedError('Center birefringence is not implemented yet.')
         else:
