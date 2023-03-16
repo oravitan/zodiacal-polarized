@@ -130,7 +130,7 @@ class IntegratedStarlight:
         """
         current_size = hp.npix2nside(self.isl_map.shape[0])  # current nside
         res_factor = hp.nside2pixarea(current_size) / hp.nside2pixarea(nside)  # resolution factor
-        upgraded_map = np.stack([hp.ud_grade(s, nside) for s in self.isl_map.T], axis=-1)  # rescale the skymap
+        upgraded_map = np.stack([hp.ud_grade(s.value, nside, power=-2) for s in self.isl_map.T], axis=-1)  # rescale the skymap
         upgraded_map = res_factor * upgraded_map * self.isl_map.unit
         if update:  # update the skymap
             self.isl_map = upgraded_map

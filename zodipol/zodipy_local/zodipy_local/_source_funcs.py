@@ -11,6 +11,9 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
 
+np.seterr(all="ignore")
+
+
 def get_blackbody_emission(
     freq: float | npt.NDArray[np.float64], T: npt.NDArray[np.float64]
 ) -> npt.NDArray[np.float64]:

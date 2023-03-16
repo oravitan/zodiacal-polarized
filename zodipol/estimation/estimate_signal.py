@@ -2,7 +2,7 @@ import numpy as np
 import astropy.units as u
 
 
-def estimate_IQU(intensity, angles):
+def estimate_IQU(intensity, polarizance, angles):
     """
     Calculate the Stokes parameters of the signal.
     :param intensity: The intensity of the signal.
@@ -10,10 +10,10 @@ def estimate_IQU(intensity, angles):
     :return: The Stokes parameters of the signal.
     """
     # create the angles matrix
-    angles_matrix = np.stack((np.ones_like(angles), np.cos(2*angles), np.sin(2*angles)), axis=1)
-    pseudo_inverse = angles_matrix.T @ angles_matrix
-    intensity_mult = np.einsum('ij,...j->...i', angles_matrix.T, intensity)
-    intensity_inv = np.einsum('ij,...j->...i', pseudo_inverse, intensity_mult)
+    angles_matrix = 0.5 * np.stack((np.ones_like(angles), polarizance*np.cos(2*angles), polarizance*np.sin(2*angles)), axis=-2)
+    pseudo_inverse = np.einsum('...ij,...kj->...ik', angles_matrix, angles_matrix)
+    intensity_mult = np.einsum('...ij,...j->...i', angles_matrix, intensity)
+    intensity_inv = np.linalg.solve(pseudo_inverse, intensity_mult)
     I, Q, U = intensity_inv[..., 0], intensity_inv[..., 1], intensity_inv[..., 2]
     return I, Q, U
 

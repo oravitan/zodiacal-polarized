@@ -50,7 +50,7 @@ class Zodipol:
         planets_skymap = self._get_planetary_light_ang(theta_vec, phi_vec, obs_time)
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
         I += planets_skymap + isl_map
-        return Observation(I, Q, U, theta=theta_vec, phi=phi_vec)
+        return Observation(I, Q, U, theta=theta_vec, phi=phi_vec, roll=0).change_roll(roll.to('rad').value)
 
     def create_full_sky_observation(self, nside: int = 64, obs_time: Time | str = Time("2022-06-14"),):
         obs_time = (Time(obs_time) if not isinstance(obs_time, Time) else obs_time)  # Observation time
@@ -178,8 +178,8 @@ class Zodipol:
         frequency_range = wavelength_range.to(u.THz, equivalencies=u.spectral())  # Frequency of the observation
         imager_response = self.imager.get_camera_response(wavelength_range.value, 'red')
 
-        f_min = max(frequency_range.min(), 570 * u.THz)
-        f_max = min(frequency_range.max(), 720 * u.THz)
+        f_min = max(frequency_range.min(), 440 * u.THz)
+        f_max = min(frequency_range.max(), 530 * u.THz)
         frequency = np.linspace(f_min, f_max, n_freq, endpoint=True)
         wavelength_interp = frequency.to(u.nm, equivalencies=u.spectral())
         imager_response_interp = np.interp(wavelength_interp, wavelength_range, imager_response)
