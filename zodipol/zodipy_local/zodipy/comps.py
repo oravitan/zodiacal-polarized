@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from zodipy_local._constants import R_ASTEROID_BELT, R_KUIPER_BELT, R_MARS
-from zodipy_local._ipd_comps import (
+from zodipol.zodipy_local.zodipy._constants import R_ASTEROID_BELT, R_KUIPER_BELT, R_MARS
+from zodipol.zodipy_local.zodipy._ipd_comps import (
     Band,
     BroadBand,
     Cloud,

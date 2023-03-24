@@ -7,10 +7,10 @@ import astropy.units as u
 import numpy as np
 from scipy.interpolate import interp1d
 
-from zodipy_local._bandpass import Bandpass
-from zodipy_local._constants import SPECIFIC_INTENSITY_UNITS
-from zodipy_local._ipd_comps import ComponentLabel
-from zodipy_local._ipd_model import RRM, InterplanetaryDustModel, Kelsall
+from zodipol.zodipy_local.zodipy._bandpass import Bandpass
+from zodipol.zodipy_local.zodipy._constants import SPECIFIC_INTENSITY_UNITS
+from zodipol.zodipy_local.zodipy._ipd_comps import ComponentLabel
+from zodipol.zodipy_local.zodipy._ipd_model import RRM, InterplanetaryDustModel, Kelsall
 
 InterplanetaryDustModelT = TypeVar(
     "InterplanetaryDustModelT", bound=InterplanetaryDustModel

@@ -4,9 +4,9 @@ import pytest
 from hypothesis import given
 from hypothesis.strategies import DataObject, data
 
-from zodipy_local._types import FrequencyOrWavelength
-from zodipy_local._validators import get_validated_and_normalized_weights, get_validated_freq
-from zodipy_local.zodipy_local import Zodipy
+from zodipy._types import FrequencyOrWavelength
+from zodipy._validators import get_validated_and_normalized_weights, get_validated_freq
+from zodipy.zodipy import Zodipy
 
 from ._strategies import model, random_freq, weights
 

@@ -4,10 +4,11 @@ import astropy.units as u
 import healpy as hp
 
 from astropy.time import Time
+from skimage.filters import gaussian
 
 from zodipol.zodipol.observation import Observation
 from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
-from zodipy_local.zodipy_local import Zodipy, IQU_to_image
+from zodipol.zodipy_local.zodipy.zodipy import Zodipy, IQU_to_image
 from zodipol.utils.math import get_rotation_matrix
 from zodipol.imager.imager import Imager
 from zodipol.background_radiation import IntegratedStarlight, PlanetaryLight, IntegratedStarlightFactory
@@ -21,7 +22,7 @@ class Zodipol:
     def __init__(self, polarizance: float = 1., fov: float = None,  n_polarization_ang: int = 4, solar_cut=30 * u.deg,
                  parallel=False, n_freq: int = 5, mie_model_path=MIE_MODEL_DEFAULT_PATH, isl=True,
                  integrated_starlight_path=INTEGRATED_STARLIGHT_MODEL_PATH, planetary: bool = True, resolution=(2448, 2048),
-                 imager_params=None, zodipy_params=None):
+                 imager_params=None, zodipy_params=None, direction_uncertainty=0*u.deg, circ_motion_blur = 0*u.deg):
         imager_params = (imager_params if imager_params is not None else {})
         zodipy_params = (zodipy_params if zodipy_params is not None else {})
         self.polarization_angle = np.linspace(0, np.pi, n_polarization_ang, endpoint=False)  # Polarization angle of the observation
@@ -36,6 +37,8 @@ class Zodipol:
 
         self.isl = (self._set_integrated_starlight(integrated_starlight_path=integrated_starlight_path) if isl is True else None)  # Initialize the integrated starlight model
         self.planetary = (PlanetaryLight() if planetary is True else None)
+        self.direction_uncertainty = direction_uncertainty
+        self.circ_motion_blur = circ_motion_blur
 
     def create_observation(self, theta: u.Quantity, phi: u.Quantity, roll: u.Quantity = 0 * u.deg,
                            obs_time: Time | str = Time("2022-06-14"), lonlat: bool = False, new_isl=False):
@@ -50,6 +53,8 @@ class Zodipol:
         planets_skymap = self._get_planetary_light_ang(theta_vec, phi_vec, obs_time)
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
         I += planets_skymap + isl_map
+        I, Q, U = self._add_direction_uncertainty(I, Q, U)
+        I, Q, U = self._add_radial_blur(I, Q, U)
         return Observation(I, Q, U, theta=theta_vec, phi=phi_vec, roll=0).change_roll(roll.to('rad').value)
 
     def create_full_sky_observation(self, nside: int = 64, obs_time: Time | str = Time("2022-06-14"),):
@@ -186,3 +191,17 @@ class Zodipol:
 
         return wavelength_interp, frequency, imager_response_interp
 
+    def _add_direction_uncertainty(self, I, Q, U):
+        pixel_size = self.fov / self.imager.resolution
+        pixels_uncertainty = (self.direction_uncertainty / pixel_size).value
+        pixels_uncertainty = np.concatenate((pixels_uncertainty, [1]))
+        prev_shape = I.shape
+        new_shape = self.imager.resolution + list(I.shape[1:])
+        I_g, Q_g, U_g = [gaussian(x.reshape(new_shape), pixels_uncertainty).reshape(prev_shape) for x in (I, Q, U)]
+        I_g, Q_g, U_g = [x * I.unit for x in (I_g, Q_g, U_g)]
+        return I_g, Q_g, U_g
+
+    def _add_radial_blur(self, I, Q, U):
+        if self.circ_motion_blur.value != 0:
+            raise NotImplementedError
+        return I, Q, U

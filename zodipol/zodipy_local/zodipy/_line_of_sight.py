@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING, Iterable
 
 import numpy as np
 
-from zodipy_local._constants import R_0, R_EARTH, R_JUPITER, R_KUIPER_BELT
-from zodipy_local._ipd_comps import ComponentLabel
-from zodipy_local.comps import RRM
+from zodipol.zodipy_local.zodipy._constants import R_0, R_EARTH, R_JUPITER, R_KUIPER_BELT
+from zodipol.zodipy_local.zodipy._ipd_comps import ComponentLabel
+from zodipol.zodipy_local.zodipy.comps import RRM
 
 if TYPE_CHECKING:
     import numpy.typing as npt

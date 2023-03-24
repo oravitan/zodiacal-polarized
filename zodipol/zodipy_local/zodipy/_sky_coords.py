@@ -6,7 +6,7 @@ import numpy.typing as npt
 from astropy.coordinates import HeliocentricMeanEcliptic, get_body
 from astropy.time import Time
 
-from zodipy_local._constants import DISTANCE_FROM_EARTH_TO_L2
+from zodipol.zodipy_local.zodipy._constants import DISTANCE_FROM_EARTH_TO_L2
 
 
 @u.quantity_input

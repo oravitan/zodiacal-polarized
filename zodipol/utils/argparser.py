@@ -17,6 +17,8 @@ class ArgParser:
 
     def _parse_arguments(self):
         self.args.direction = np.array(self.args.direction, dtype=float) * u.deg
+        self.args.direction_uncertainty = float(self.args.direction_uncertainty) * u.deg
+        self.args.motion_blur = float(self.args.motion_blur) * u.deg
         self.args.obs_time = Time(self.args.obs_time)
         self.args.fov = self.args.fov * u.deg
         self.args.imager_params = {x: eval(y) for x, y in zip(self.args.imager_params[::2], self.args.imager_params[1::2])}
@@ -39,4 +41,6 @@ class ArgParser:
         parser.add_argument('--new_isl', '-ni', action='store_true', help='Create new interstellar emission')
         parser.add_argument('--parallel', '-par', action='store_true', help='Use parallel processing')
         parser.add_argument('--imager_params', '-ip', nargs='*', default=(), help='Imager parameters (alpha, beta)')
+        parser.add_argument('--direction-uncertainty', '-du', default=0, help='Imager direction uncertainty')
+        parser.add_argument('--motion-blur', '-mb', default=0, help='Imager motion blur')
         return parser.parse_args(*args, **kwargs)

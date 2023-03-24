@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Mapping, Sequence
 
 if TYPE_CHECKING:
-    from zodipy_local._ipd_comps import Component, ComponentLabel
-    from zodipy_local._types import FrequencyOrWavelength
+    from zodipol.zodipy_local.zodipy._ipd_comps import Component, ComponentLabel
+    from zodipol.zodipy_local.zodipy._types import FrequencyOrWavelength
 
 
 @dataclass

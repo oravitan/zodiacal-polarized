@@ -17,7 +17,7 @@ ZodiPy simulates zodiacal emission in intensity for arbitrary Solar System obser
 import astropy.units as u
 from astropy.time import Time
 
-from zodipy_local import Zodipy
+from zodipy import Zodipy
 
 model = Zodipy("dirbe")
 

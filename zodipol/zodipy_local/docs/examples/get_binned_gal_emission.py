@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.time import Time
 
-from zodipy_local import Zodipy
+from zodipy import Zodipy
 
 model = Zodipy("planck18")
 nside = 256

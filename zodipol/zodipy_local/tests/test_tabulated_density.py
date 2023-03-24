@@ -4,8 +4,8 @@ import numpy as np
 from hypothesis import given, settings
 from hypothesis.strategies import floats, integers
 
-from zodipy_local import tabulate_density, model_registry
-from zodipy_local.zodipy_local import Zodipy
+from zodipy import tabulate_density, model_registry
+from zodipy.zodipy import Zodipy
 
 from ._strategies import model
 

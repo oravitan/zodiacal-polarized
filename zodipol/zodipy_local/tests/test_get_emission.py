@@ -8,7 +8,7 @@ from astropy.time import Time, TimeDelta
 from hypothesis import given, settings
 from hypothesis.strategies import DataObject, data, integers
 
-from zodipy_local.zodipy_local import Zodipy
+from zodipy.zodipy import Zodipy
 
 from ._strategies import (
     angles,

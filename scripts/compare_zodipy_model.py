@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.time import Time
 
-from zodipy_local.zodipy_local import Zodipy
+from zodipy.zodipy import Zodipy
 from zodipy import Zodipy as Zodipy_unpol
 
 

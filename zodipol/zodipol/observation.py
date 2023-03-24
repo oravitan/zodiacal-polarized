@@ -1,6 +1,6 @@
 import numpy as np
 
-from zodipy_local.zodipy_local import IQU_to_image
+from zodipol.zodipy_local.zodipy.zodipy import IQU_to_image
 from zodipol.estimation.estimate_signal import estimate_DoLP, estimate_AoP, estimate_IQU
 from zodipol.mie_scattering.mueller_matrices import get_rotation_mueller_matrix
 

@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 import numpy as np
 import numpy.typing as npt  # type: ignore
 
-from zodipy_local._ipd_comps import (
+from zodipol.zodipy_local.zodipy._ipd_comps import (
     Band,
     BroadBand,
     Cloud,

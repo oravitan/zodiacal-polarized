@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Sequence
 import astropy.units as u
 import numpy as np
 
-from zodipy_local._ipd_dens_funcs import construct_density_partials
-from zodipy_local.model_registry import model_registry
+from zodipol.zodipy_local.zodipy._ipd_dens_funcs import construct_density_partials
+from zodipol.zodipy_local.zodipy.model_registry import model_registry
 
 if TYPE_CHECKING:
     import numpy.typing as npt

@@ -11,7 +11,7 @@ from itertools import repeat
 from zodipol.utils.argparser import ArgParser
 from zodipol.zodipol import Zodipol, Observation
 from zodipol.estimation.estimate_signal import estimate_IQU
-from zodipy_local.zodipy_local import IQU_to_image
+from zodipy.zodipy import IQU_to_image
 
 
 def get_images(obs_est_rot, polarization_angle, polarizance, zodipol, parser, disable=False):

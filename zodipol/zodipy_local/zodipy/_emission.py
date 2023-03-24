@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Callable
 import numpy as np
 import numpy.typing as npt
 
-from zodipy_local._ipd_model import RRM, InterplanetaryDustModel, Kelsall
-from zodipy_local._source_funcs import (
+from zodipol.zodipy_local.zodipy._ipd_model import RRM, InterplanetaryDustModel, Kelsall
+from zodipol.zodipy_local.zodipy._source_funcs import (
     get_dust_grain_temperature,
     get_scattering_angle,
 )
@@ -16,7 +16,7 @@ from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 
 if TYPE_CHECKING:
 
-    from zodipy_local._ipd_dens_funcs import ComponentDensityFn
+    from zodipol.zodipy_local.zodipy._ipd_dens_funcs import ComponentDensityFn
 
 """
 Function that return the zodiacal emission at a step along all lines of sight given 

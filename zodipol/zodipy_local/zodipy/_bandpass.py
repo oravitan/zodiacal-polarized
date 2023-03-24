@@ -6,19 +6,19 @@ from typing import TYPE_CHECKING, Sequence
 import astropy.units as u
 import numpy as np
 
-from zodipy_local._constants import (
+from zodipol.zodipy_local.zodipy._constants import (
     MAX_INTERPOLATION_GRID_TEMPERATURE,
     MIN_INTERPOLATION_GRID_TEMPERATURE,
     N_INTERPOLATION_POINTS,
 )
-from zodipy_local._source_funcs import get_blackbody_emission
-from zodipy_local._validators import get_validated_and_normalized_weights, get_validated_freq
+from zodipol.zodipy_local.zodipy._source_funcs import get_blackbody_emission
+from zodipol.zodipy_local.zodipy._validators import get_validated_and_normalized_weights, get_validated_freq
 
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    from zodipy_local._ipd_model import InterplanetaryDustModel
-    from zodipy_local._types import FrequencyOrWavelength
+    from zodipol.zodipy_local.zodipy._ipd_model import InterplanetaryDustModel
+    from zodipol.zodipy_local.zodipy._types import FrequencyOrWavelength
 
 
 @dataclass

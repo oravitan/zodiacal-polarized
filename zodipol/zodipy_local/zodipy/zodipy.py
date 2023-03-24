@@ -11,17 +11,17 @@ import healpy as hp
 import numpy as np
 from astropy.coordinates import solar_system_ephemeris
 
-from zodipy_local._bandpass import get_bandpass_interpolation_table, validate_and_get_bandpass
-from zodipy_local._constants import SPECIFIC_INTENSITY_UNITS
-from zodipy_local._emission import EMISSION_MAPPING
-from zodipy_local._interpolate_source import SOURCE_PARAMS_MAPPING
-from zodipy_local._ipd_comps import ComponentLabel
-from zodipy_local._ipd_dens_funcs import construct_density_partials_comps
-from zodipy_local._line_of_sight import get_line_of_sight_start_and_stop_distances
-from zodipy_local._sky_coords import get_obs_and_earth_positions
-from zodipy_local._unit_vectors import get_unit_vectors_from_ang, get_unit_vectors_from_pixels
-from zodipy_local._validators import get_validated_ang, get_validated_pix
-from zodipy_local.model_registry import model_registry
+from zodipol.zodipy_local.zodipy._bandpass import get_bandpass_interpolation_table, validate_and_get_bandpass
+from zodipol.zodipy_local.zodipy._constants import SPECIFIC_INTENSITY_UNITS
+from zodipol.zodipy_local.zodipy._emission import EMISSION_MAPPING
+from zodipol.zodipy_local.zodipy._interpolate_source import SOURCE_PARAMS_MAPPING
+from zodipol.zodipy_local.zodipy._ipd_comps import ComponentLabel
+from zodipol.zodipy_local.zodipy._ipd_dens_funcs import construct_density_partials_comps
+from zodipol.zodipy_local.zodipy._line_of_sight import get_line_of_sight_start_and_stop_distances
+from zodipol.zodipy_local.zodipy._sky_coords import get_obs_and_earth_positions
+from zodipol.zodipy_local.zodipy._unit_vectors import get_unit_vectors_from_ang, get_unit_vectors_from_pixels
+from zodipol.zodipy_local.zodipy._validators import get_validated_ang, get_validated_pix
+from zodipol.zodipy_local.zodipy.model_registry import model_registry
 
 from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     import numpy.typing as npt
     from astropy.time import Time
 
-    from zodipy_local._types import FrequencyOrWavelength, ParameterDict, Pixels, SkyAngles
+    from zodipol.zodipy_local.zodipy._types import FrequencyOrWavelength, ParameterDict, Pixels, SkyAngles
 
 
 PLATFORM = platform.system().lower()

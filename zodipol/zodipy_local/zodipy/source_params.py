@@ -1,6 +1,6 @@
 import astropy.units as u
 
-from zodipy_local._ipd_comps import ComponentLabel
+from zodipol.zodipy_local.zodipy._ipd_comps import ComponentLabel
 
 T_0_DIRBE = 286
 DELTA_DIRBE = 0.46686259861486573

@@ -1,5 +1,5 @@
-from zodipy_local import comps, source_params
-from zodipy_local._ipd_model import RRM, Kelsall, model_registry
+from zodipol.zodipy_local.zodipy import comps, source_params
+from zodipol.zodipy_local.zodipy._ipd_model import RRM, Kelsall, model_registry
 
 model_registry.register_model(
     name="dirbe",
