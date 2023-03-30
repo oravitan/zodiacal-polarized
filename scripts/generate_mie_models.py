@@ -34,10 +34,10 @@ if __name__ == '__main__':
     theta = np.linspace(0, np.pi, 100)  # angle in radians
 
     # create a parameter mapping
-    s_min = np.logspace(np.log10(0.001), np.log10(10), 5)  # in um
-    s_max = np.logspace(np.log10(20), np.log10(100), 5)  # in um
-    big_gamma = np.linspace(3, 5, 5)
-    small_gamma = np.arange(2, 4, 5)
+    s_min = np.logspace(np.log10(0.0001), np.log10(0.001), 10)  # in um
+    s_max = np.logspace(np.log10(40), np.log10(60), 5)  # in um
+    big_gamma = np.linspace(2, 4, 5)
+    small_gamma = np.linspace(3, 5, 12)
     BG, SG, SN, SX = np.meshgrid(big_gamma, small_gamma, s_min, s_max)  # create a grid of parameters
     SN, SX, BG, SG = SN.flatten(), SX.flatten(), BG.flatten(), SG.flatten()  # flatten the grid
 
@@ -69,6 +69,7 @@ if __name__ == '__main__':
         results.append(row_dict)
     results_df = pd.DataFrame(results)
     results_df = results_df.assign(dist_from_kesall=results_df[['dist_from_kesall_1250', 'dist_from_kesall_2200', 'dist_from_kesall_3500']].mean(axis=1))
+    results_df.to_csv('outputs/mie_parameter_results.csv', index=False)
 
     results_df.plot.scatter(x='dist_from_kesall', y='dist_between_spec', grid=True, loglog=True)
     plt.savefig('outputs/mie_dist_from_kesall.pdf', format='pdf')
