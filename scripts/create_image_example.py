@@ -14,9 +14,10 @@ if __name__ == '__main__':
     parser = ArgParser()
 
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"], n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"], n_freq=parser["n_freq"],
-                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"],
-                      direction_uncertainty=parser["direction_uncertainty"], circ_motion_blur=parser["motion_blur"])
+                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"])
     obs = zodipol.create_observation(theta=parser["direction"][0], phi=parser["direction"][1], lonlat=False, new_isl=parser["new_isl"])
+    obs = obs.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"])
+    obs = obs.add_radial_blur(parser["motion_blur"], parser["resolution"])
 
     # Calculate the polarization
     logging.info(f'Calculating the polarization.')

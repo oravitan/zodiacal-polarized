@@ -131,3 +131,5 @@ dmypy.json
 .idea/
 
 *.pdf
+
+saved_models/
