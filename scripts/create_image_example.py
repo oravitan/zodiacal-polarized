@@ -67,4 +67,8 @@ if __name__ == '__main__':
     biref_amount = zodipol.imager.get_birefringence_mat(0.1, 'center', flat=True, std=3)
     biref_angle = zodipol.imager.get_birefringence_mat(0.1, 'constant', flat=True)
     biref_mueller = zodipol.imager.get_birefringence_mueller_matrix(biref_amount, biref_angle)
-    biref_obs = zodipol.imager.apply_birefringence(obs, biref_mueller)
+    biref_obs = zodipol.imager.apply_birefringence(obs, biref_mueller[:, None, ...])
+
+    logging.info(f'Plotting the biref camera intensity.')
+    biref_intensity_noise = zodipol.make_camera_images(biref_obs, n_realizations=parser["n_realizations"], add_noise=True)
+    plot_satellite_image_indices(biref_intensity_noise, 4, resolution=parser["resolution"],title="Camera Noised Polarized Intensity")
