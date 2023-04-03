@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
+from datetime import datetime
 
 from zodipy._source_funcs import get_phase_function
 from zodipy.source_params import PHASE_FUNCTION_DIRBE, SPECTRUM_DIRBE
@@ -14,6 +15,7 @@ from zodipol.zodipol.zodipol import MIE_MODEL_DEFAULT_PATH
 wavelength = SPECTRUM_DIRBE[:3].to('nm').value  # in nm
 C = list(zip(*PHASE_FUNCTION_DIRBE))[:3]
 C_w = dict(zip(wavelength.round().astype(int), C))
+C_w = {1250: C_w[1250]}
 
 
 def distance_from_kelsall(theta, func, c):
@@ -27,32 +29,43 @@ def bhat_distance(theta, func1, func2):
     return bhat_distance
 
 
+def scattering_dop(mueller):
+    return np.max(abs(mueller[..., 0, 1] / mueller[..., 0, 0]))
+
+
 def optimization_cost(x):
+    print(f"{datetime.now().strftime('%H:%M:%S.%f')}: Current parameters: {x}")
     s_min, s_max, big_gamma, small_gamma = x
-    psm = ParticleSizeModel(s_min=s_min, s_max=s_max, big_gamma=big_gamma, small_gamma=small_gamma)  # create a particle size model
+    psm = ParticleSizeModel(s_min=s_min, s_max=s_max, big_gamma=big_gamma, small_gamma=small_gamma, s_res=200)  # create a particle size model
     mie = MieScatteringModel.train(spectrum, particle_size=psm)  # train a Mie scattering model
 
     # plot the model
+    dop = []
     dist_from_kesall = []
     for w in C_w:
         mueller_125um = mie.get_mueller_matrix(w, theta)  # get the scattering
         mie_phase_func_125um = mueller_125um[..., 0, 0, 0]
         cur_dist_from_kesall = distance_from_kelsall(theta, mie_phase_func_125um, c=C_w[w])
         dist_from_kesall.append(cur_dist_from_kesall)
-    return np.mean(dist_from_kesall)
+        dop.append(scattering_dop(mueller_125um))
+
+    regularization_factor = 0.4
+    min_dist = np.mean(dist_from_kesall)
+    regularization = (np.mean(dop) - 0.2) ** 2  # aiming for a DoP of 0.2
+    print('mean DoP:', np.mean(dop))
+    print(f"{datetime.now().strftime('%H:%M:%S.%f')}: Cost results: (min_dist={min_dist}) + {regularization_factor}*(regularization={regularization})")
+    return min_dist + regularization_factor * regularization
 
 
 if __name__ == '__main__':
-    spectrum = np.logspace(np.log10(300), np.log10(3500), 10)  # white light wavelength in nm
+    spectrum = np.logspace(np.log10(300), np.log10(1300), 10)  # white light wavelength in nm
     theta = np.linspace(0, np.pi, 100)  # angle in radians
 
     # create a parameter mapping
     print('Starting optimization')
-    clbk = lambda x: print(f"Current parameters: {x}")
-    x0 = np.array([0.001, 50, 3.8, 3])
-    x = minimize(optimization_cost, x0, method='Nelder-Mead', tol=1, callback=clbk)
+    x0 = np.array([1, 10, 4.4, 3])
+    x = minimize(optimization_cost, x0, method='Nelder-Mead', tol=0.001, options={'disp': True, 'maxiter': 100, 'adaptive': True})
     print("Finished with x=", x)
-
     s_min, s_max, big_gamma, small_gamma = x.x
     psm = ParticleSizeModel(s_min=s_min, s_max=s_max, big_gamma=big_gamma, small_gamma=small_gamma)  # create a particle size model
     mie = MieScatteringModel.train(spectrum, particle_size=psm)
