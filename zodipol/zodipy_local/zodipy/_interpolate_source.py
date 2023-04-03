@@ -57,6 +57,18 @@ def get_source_parameters_kelsall_comp(
         source_parameters[comp_label]["emissivity"] = emissivity
         source_parameters[comp_label]["albedo"] = albedo
 
+    if model.phase_coefficients is not None:
+        phase_coefficients = interpolator(y=np.asarray(model.phase_coefficients))(
+            bandpass.frequencies.value
+        )
+        phase_coefficients = interpolator(y=np.asarray(model.phase_coefficients))(
+            bandpass.frequencies.value
+        )
+    else:
+        phase_coefficients = np.repeat(
+            np.zeros((3, 1)), repeats=bandpass.frequencies.size, axis=-1
+        )
+
     if model.solar_irradiance is not None:
         solar_irradiance = interpolator(y=model.solar_irradiance)(
             bandpass.frequencies.value
@@ -68,8 +80,10 @@ def get_source_parameters_kelsall_comp(
         solar_irradiance = 0
 
     if bandpass.frequencies.size > 1 and not keep_freq_elems:
+        phase_coefficients = bandpass.integrate(phase_coefficients)
         solar_irradiance = bandpass.integrate(solar_irradiance)
     source_parameters["common"] = {}
+    source_parameters["common"]["phase_coefficients"] = tuple(phase_coefficients)
     source_parameters["common"]["solar_irradiance"] = solar_irradiance
     source_parameters["common"]["T_0"] = model.T_0
     source_parameters["common"]["delta"] = model.delta

@@ -4,11 +4,13 @@ from typing import TYPE_CHECKING, Callable
 
 import numpy as np
 import numpy.typing as npt
+from itertools import repeat
 
 from zodipol.zodipy_local.zodipy._ipd_model import RRM, InterplanetaryDustModel, Kelsall
 from zodipol.zodipy_local.zodipy._source_funcs import (
     get_dust_grain_temperature,
     get_scattering_angle,
+    get_phase_function
 )
 
 from zodipol.mie_scattering.mueller_matrices import get_unpolarized_stokes_vector, get_rotation_mueller_matrix
@@ -37,6 +39,7 @@ def kelsall(
     delta: float,
     emissivity: np.float64 | list[np.float64],
     albedo: np.float64 | list[np.float64],
+    phase_coefficients: tuple[float, ...],
     solar_irradiance: np.float64 | list[np.float64],
     bp_interpolation_table: npt.NDArray[np.float64],
     mie_scattering_model: MieScatteringModel,
@@ -60,9 +63,13 @@ def kelsall(
         solar_flux = solar_irradiance / R_helio**2
         scattering_angle = get_scattering_angle(R_los, R_helio, X_los, X_helio)
 
-        scattering_emission = mie_scattering_model.get_mueller_matrix(wavelength, scattering_angle.squeeze())
-        scattering_intensity = np.einsum('...jk,kw->...jw', scattering_emission, unpolarized_stokes[0, ...])
-        emission += albedo[None, :, None, None] * solar_flux[..., None, None] * scattering_intensity
+        # scattering_emission = mie_scattering_model.get_mueller_matrix(wavelength, scattering_angle.squeeze())
+        phase_function = np.stack(list(map(get_phase_function, repeat(scattering_angle.squeeze()), list(zip(*phase_coefficients)))), axis=-1)
+        scattering_dop = -0.33 * np.sin(scattering_angle.squeeze()) ** 5
+        scattering_intensity = np.stack([phase_function, phase_function * scattering_dop[..., None], np.zeros_like(phase_function), np.zeros_like(phase_function)], axis=-1)
+
+        # scattering_intensity = np.einsum('...jk,kw->...jw', scattering, unpolarized_stokes[0, ...])
+        emission += albedo[None, :, None, None] * solar_flux[..., None, None] * scattering_intensity[..., None]
     emission_density = emission * get_density_function(X_helio)[..., None, None]
 
     n_sca = X_los / R_los
