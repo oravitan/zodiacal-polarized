@@ -195,7 +195,7 @@ class Imager:
     # ------------------------------------------------
     def apply_birefringence(self, obs, biref_mat):
         observation_mat = obs.to_numpy()
-        observation_biref = np.einsum('...ij,...jk->...ik', biref_mat[:, None, ...], observation_mat[..., None])
+        observation_biref = np.einsum('...ij,...jk->...ik', biref_mat, observation_mat[..., None])
         I, Q, U = observation_biref[..., 0, 0], observation_biref[..., 1, 0], observation_biref[..., 2, 0]
         return Observation(I, Q, U, theta=obs.theta, phi=obs.phi)
 

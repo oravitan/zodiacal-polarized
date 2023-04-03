@@ -25,8 +25,8 @@ class Observation:
         return len(self.I)
 
     @classmethod
-    def from_image(cls, image, polarization_angle):
-        I, Q, U = estimate_IQU(image, polarization_angle)
+    def from_image(cls, image, polarizance, polarization_angle):
+        I, Q, U = estimate_IQU(image, polarizance, polarization_angle)
         return cls(I, Q, U)
 
     def to_numpy(self, ndims=4):

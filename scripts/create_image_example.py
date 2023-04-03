@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     # plot unnoised camera response
     camera_intensity = zodipol.make_camera_images(obs, n_realizations=parser["n_realizations"], add_noise=False)
-    obs_camera_intensity = Observation.from_image(camera_intensity, parser["polarization_angle"])
+    obs_camera_intensity = Observation.from_image(camera_intensity, parser["polarizance"], parser["polarization_angle"][None, :])
     camera_dolp = obs_camera_intensity.get_dolp()
     camera_aop = obs_camera_intensity.get_aop()
 
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     # Calculate the number of photons
     logging.info(f'Calculating the realistic image with noise.')
     camera_intensity_noise = zodipol.make_camera_images(obs, n_realizations=parser["n_realizations"], add_noise=True)
-    obs_camera_intensity_noise = Observation.from_image(camera_intensity_noise, parser["polarization_angle"])
+    obs_camera_intensity_noise = Observation.from_image(camera_intensity_noise, parser["polarizance"], parser["polarization_angle"][None, :])
     camera_dolp_noise = obs_camera_intensity_noise.get_dolp()
     camera_aop_noise = obs_camera_intensity_noise.get_aop()
 
@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
     # Add imager birefringence to the received image
     logging.info(f'Adding imager birefringence to the received image.')
-    biref_amount = zodipol.imager._get_birefringence_mat(0.1, 'center', flat=True, std=3)
-    biref_angle = zodipol.imager._get_birefringence_mat(0.1, 'constant', flat=True)
+    biref_amount = zodipol.imager.get_birefringence_mat(0.1, 'center', flat=True, std=3)
+    biref_angle = zodipol.imager.get_birefringence_mat(0.1, 'constant', flat=True)
     biref_mueller = zodipol.imager.get_birefringence_mueller_matrix(biref_amount, biref_angle)
     biref_obs = zodipol.imager.apply_birefringence(obs, biref_mueller)

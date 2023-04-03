@@ -2,10 +2,11 @@ import os
 import numpy as np
 import astropy.units as u
 import healpy as hp
+import transformations as transf
 
 from astropy.time import Time
 
-
+from zodipol.utils.math import ang2vec, vec2ang
 from zodipol.zodipol.observation import Observation
 from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 from zodipol.zodipy_local.zodipy.zodipy import Zodipy, IQU_to_image
@@ -99,20 +100,24 @@ class Zodipol:
         return camera_intensity_mean
 
     def _create_sky_coords(self, theta: u.Quantity, phi: u.Quantity, roll: u.Quantity = 0*u.deg, resolution=(2448, 2048)):
-        # Create the sky coordinates
-        theta_vec = np.linspace(- self.fov / 2, self.fov / 2, resolution[1])
+        xaxis = [1, 0, 0]
+        theta_vec = np.linspace(- self.fov / 2, self.fov / 2, resolution[1]) + 90*u.deg
         phi_vec = np.linspace(- self.fov / 2, self.fov / 2, resolution[0])
-        theta_mat, phi_mat = np.meshgrid(theta + theta_vec, phi + phi_vec)
-        theta_v, phi_v = theta_mat.flatten(), phi_mat.flatten()
-        theta_v = abs(180 * u.deg - abs(180 * u.deg - theta_v))  # Flip the theta axis to the correct direction
+        theta_mat, phi_mat = np.meshgrid(theta_vec, phi_vec)
 
-        # Rotate the coordinates according to the roll angle
-        rot_vec = hp.ang2vec(theta.to("rad"), phi.to("rad"))
-        vecs = hp.ang2vec(theta_v.to('rad'), phi_v.to('rad'))
-        vecs_rot = (get_rotation_matrix(rot_vec, roll) @ vecs.T).T
-        theta_v, phi_v = hp.vec2ang(vecs_rot.value) * u.rad
+        rot_c_vec = ang2vec(theta.to('rad').value, phi.to('rad').value)
+        if theta == 90*u.deg and phi == 0*u.deg:
+            rot_mat = np.identity(4)
+        else:
+            rot_mat = transf.rotation_matrix(transf.angle_between_vectors(xaxis, rot_c_vec), transf.vector_product(xaxis, rot_c_vec))
+        roll_mat = transf.rotation_matrix(roll.to('rad').value, rot_c_vec)
+        trans_mat = transf.concatenate_matrices(roll_mat, rot_mat)
 
-        return theta_v, phi_v
+        rot_vec = ang2vec(theta_mat.to('rad').value, phi_mat.to('rad').value)
+        mul = np.einsum('ij,...j->...i', trans_mat[:3, :3], rot_vec)
+        theta_v, phi_v = vec2ang(mul) * u.rad
+
+        return theta_v.flatten(), phi_v.flatten()
 
     def _set_mie_model(self, mie_model_path=MIE_MODEL_DEFAULT_PATH):
         if mie_model_path is None:

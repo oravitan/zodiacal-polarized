@@ -61,7 +61,8 @@ class MieScatteringModel:
         S1, S2 = self._interp_S1S2(wavelength_m, theta_m)
         S11, S12, S33, S34 = self._calculate_mueller_elems(S1, S2)
         cross_section = self._get_cross_section(wavelength)
-        return self.get_mueller_matrix_from_elem(S11, S12, S33, S34, cross_section=cross_section)
+        res = self.get_mueller_matrix_from_elem(S11, S12, S33, S34, cross_section=cross_section)
+        return res.reshape(theta.shape + wavelength.shape + (4, 4))
 
     def get_scattering(self, wavelength, theta):
         wavelength_m, theta_m = np.meshgrid(wavelength, theta)
