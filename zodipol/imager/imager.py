@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import astropy.units as u
-from astropy.constants import h
+from astropy.constants import h, c
 from scipy.stats import multivariate_normal
 
 from zodipol.zodipol.observation import Observation
@@ -83,12 +83,13 @@ class Imager:
 
         # Calculate the number of electrons per pixel
         if frequency is not None:
-            freq_gradient = np.gradient(frequency)
-            n_electrons = np.einsum('ij...,j->i...', energy, freq_gradient / (h * frequency) * weights)  # Number of electrons per frequency
+            df = np.gradient(frequency)
+            n_electrons = np.einsum('ij...,j->i...', energy, df / (h * frequency) * weights)  # Number of electrons per frequency
         else:
             frequency = wavelength.to(u.THz, equivalencies=u.spectral())
-            wavelength_gradient = -np.gradient(wavelength)  # wavelength is sorted by frequency, so it inverse
-            n_electrons = np.einsum('ij...,j->i...', energy, wavelength_gradient / (h * frequency) * weights)
+            df = np.gradient(frequency)
+            jacobian = - c / (wavelength ** 2)
+            n_electrons = np.einsum('ij...,j->i...', energy, jacobian * df / (h * frequency) * weights)
 
         # n_electrons = np.sum(n_electrons_per_freq, axis=1)  # Number of electrons integral
         n_electrons = n_electrons.si  # Number of electrons in SI units

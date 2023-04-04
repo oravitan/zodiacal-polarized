@@ -5,6 +5,7 @@ import healpy as hp
 import transformations as transf
 
 from astropy.time import Time
+from astropy.constants import c
 
 from zodipol.utils.math import ang2vec, vec2ang
 from zodipol.zodipol.observation import Observation
@@ -140,8 +141,8 @@ class Zodipol:
         if self.isl is None:
             return 0
         isl_map = self.isl.resize_skymap(nside)
-        df, dw = np.gradient(self.frequency), -np.gradient(self.wavelength)
-        isl_map = isl_map * (dw / df)[None, ...]
+        jacobian = c / (self.wavelength ** 2)
+        isl_map = isl_map * jacobian[None, ...]
         # isl_map = np.stack([isl_map] * len(self.polarization_angle), axis=-1)
         return isl_map
 
@@ -156,8 +157,8 @@ class Zodipol:
             isl = self.isl
             isl_map = isl.get_ang(theta.to('rad').value, phi.to('rad').value)  # resample
 
-        df, dw = np.gradient(self.frequency), -np.gradient(self.wavelength)
-        isl_map = isl_map * (dw / df)[None, ...]
+        jacobian = c / (self.frequency ** 2)
+        isl_map = isl_map * jacobian[None, ...]
         # isl_map = np.stack([isl_map] * len(self.polarization_angle), axis=-1)
         return isl_map
 
