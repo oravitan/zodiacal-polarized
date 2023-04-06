@@ -20,40 +20,58 @@ C_w = {1250: C_w[1250]}
 
 def distance_from_kelsall(theta, func, c):
     kelsall_125um = get_phase_function(theta, c)
-    bhat = bhat_distance(theta, func, kelsall_125um)
-    return bhat
+    mse_kelsall = np.mean(abs(func - kelsall_125um))  # l1 norm
+    return mse_kelsall
+    # bhat = bhat_distance(theta, func, kelsall_125um)
+    # return bhat
 
 
 def bhat_distance(theta, func1, func2):
-    bhat_distance = -np.log(2*np.pi*np.trapz(np.sqrt(func1 * func2) * np.sin(theta), theta))
+    f1 = func1 / np.trapz(func1, theta)
+    f2 = func2 / np.trapz(func2, theta)
+    bhat_distance = -np.log(np.trapz(np.sqrt(f1 * f2), theta))
     return bhat_distance
 
 
 def scattering_dop(mueller):
-    return np.max(abs(mueller[..., 0, 1] / mueller[..., 0, 0]))
+    wanted_dop = -0.33 * np.sin(theta) ** 5
+    dop = mueller[..., 0, 0, 1] / mueller[..., 0, 0, 0]
+    # return bhat_distance(theta, abs(wanted_dop), abs(dop))
+    mse_dop = np.mean(abs(abs(wanted_dop) - abs(dop)))  # l1 norm
+    return mse_dop
+
+def generate_model(x, spectrum):
+    s_min, s_max, big_gamma, small_gamma = x[5], x[6], 1, x[7]
+    refractive_index_dict = {x[0] + 1j * x[1]: 1-x[4], x[2] + 1j * x[3]: x[4]}
+    psm = ParticleSizeModel(s_min=s_min, s_max=s_max, big_gamma=big_gamma, small_gamma=small_gamma,
+                            s_res=200)  # create a particle size model
+    mie = MieScatteringModel.train(spectrum, particle_size=psm,
+                                   refractive_index_dict=refractive_index_dict)  # train a Mie scattering model
+    return mie
 
 
 def optimization_cost(x):
-    print(f"{datetime.now().strftime('%H:%M:%S.%f')}: Current parameters: {x}")
-    s_min, s_max, big_gamma, small_gamma = x
-    psm = ParticleSizeModel(s_min=s_min, s_max=s_max, big_gamma=big_gamma, small_gamma=small_gamma, s_res=200)  # create a particle size model
-    mie = MieScatteringModel.train(spectrum, particle_size=psm)  # train a Mie scattering model
+    print(f"{datetime.now().strftime('%H:%M:%S.%f')}: Current parameters: {'[' + ', '.join(x.round(5).astype(str)) + ']'}")
+    mie = generate_model(x, spectrum)
 
     # plot the model
     dop = []
+    dop_distance = []
     dist_from_kesall = []
     for w in C_w:
         mueller_125um = mie.get_mueller_matrix(w, theta)  # get the scattering
         mie_phase_func_125um = mueller_125um[..., 0, 0, 0]
         cur_dist_from_kesall = distance_from_kelsall(theta, mie_phase_func_125um, c=C_w[w])
         dist_from_kesall.append(cur_dist_from_kesall)
-        dop.append(scattering_dop(mueller_125um))
+        dop_distance.append(scattering_dop(mueller_125um))
+        dop.append(np.max(abs(mueller_125um[..., 0, 0, 1] / mueller_125um[..., 0, 0, 0])))
 
-    regularization_factor = 0.4
+    regularization_factor = 1
     min_dist = np.mean(dist_from_kesall)
-    regularization = (np.mean(dop) - 0.2) ** 2  # aiming for a DoP of 0.2
-    print('mean DoP:', np.mean(dop))
+    regularization = np.mean(dop_distance)
+    print('mean max DoP: ', np.mean(dop), '+-', np.std(dop))  # aiming for a DoP of 0.2
     print(f"{datetime.now().strftime('%H:%M:%S.%f')}: Cost results: (min_dist={min_dist}) + {regularization_factor}*(regularization={regularization})")
+    print('--------------------')
     return min_dist + regularization_factor * regularization
 
 
@@ -63,12 +81,11 @@ if __name__ == '__main__':
 
     # create a parameter mapping
     print('Starting optimization')
-    x0 = np.array([1, 10, 4.4, 3])
-    x = minimize(optimization_cost, x0, method='Nelder-Mead', tol=0.001, options={'disp': True, 'maxiter': 100, 'adaptive': True})
+    x0 = np.array([4.74181, 0.0839, 2.94536, 0.0019, 0.21337, 0.10155, 1.17797, 1.56946])
+    x = minimize(optimization_cost, x0, method='Nelder-Mead', tol=0.001, options={'disp': True, 'adaptive': True})
     print("Finished with x=", x)
-    s_min, s_max, big_gamma, small_gamma = x.x
-    psm = ParticleSizeModel(s_min=s_min, s_max=s_max, big_gamma=big_gamma, small_gamma=small_gamma)  # create a particle size model
-    mie = MieScatteringModel.train(spectrum, particle_size=psm)
+
+    mie = generate_model(x, spectrum)
     mie_scatt = mie(spectrum, theta)
 
     # plot the Mueller matrix elements
@@ -93,8 +110,7 @@ if __name__ == '__main__':
 
     # Display out model in the White Light spectrum
     spectrum_wl = np.logspace(np.log10(300), np.log10(700), 10)  # white light wavelength in nm
-    psm = ParticleSizeModel(s_min=s_min, s_max=s_max, big_gamma=big_gamma, small_gamma=small_gamma)  # create a particle size model
-    mie_wl = MieScatteringModel.train(spectrum_wl, particle_size=psm)
+    mie_wl = generate_model(x, spectrum_wl)
     mie_wl_scatt = mie(spectrum_wl, theta)
 
     # plot the Mueller matrix elements
