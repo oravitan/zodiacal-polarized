@@ -1,9 +1,10 @@
 import numpy as np
 import os
 from multiprocessing import Pool
-from PyMieScatt import MieS1S2
+from PyMieScatt import MieS1S2, MieQ
 from scipy.ndimage import convolve
-from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import RegularGridInterpolator, interp1d
+from itertools import repeat
 
 from zodipol.visualization.mie_plotting import plot_mueller_matrix_elems, plot_intensity_polarization
 from zodipol.mie_scattering.particle_size_model import ParticleSizeModel
@@ -12,7 +13,7 @@ from zodipol.utils.constants import refractive_ind
 
 class MieScatteringModel:
     # ------------------  model training  ------------------
-    def __init__(self, wavelength, theta, x, S1, S2):
+    def __init__(self, wavelength, theta, x, S1, S2, extinction=None):
         self.wavelength = np.array(wavelength)  # wavelength in um
         self.theta = theta  # scattering angle in rad
         self.mu = np.cos(self.theta)  # cosine of scattering angle
@@ -20,6 +21,7 @@ class MieScatteringModel:
         self.S1, self.S2 = S1, S2  # Mie scattering amplitudes
         self.S1_grid = RegularGridInterpolator((self.wavelength, self.theta), self.S1)  # Mie scattering amplitude interpolator
         self.S2_grid = RegularGridInterpolator((self.wavelength, self.theta), self.S2)  # Mie scattering amplitude interpolator
+        self.extinction = extinction  # extinction cross section
 
     @classmethod
     def train(cls, wavelength, refractive_index_dict=None, particle_size: ParticleSizeModel = None, theta_res=361, kernel_size=20):
@@ -41,16 +43,24 @@ class MieScatteringModel:
         kernel = np.ones((1, kernel_size)) / kernel_size
         S1 = convolve(S1, kernel, mode='nearest')
         S2 = convolve(S2, kernel, mode='nearest')
-        return cls(wavelength, theta, x, S1, S2)
+
+        q_ext, q_sca, q_abs = cls._calculate_extinction(wavelength, refractive_index, particle_size)
+        q_ext = ((q_ext * refractive_index_weight[None, None, :]).sum(axis=-1) * particle_likelihood[None, :]).sum(axis=-1)
+        q_sca = ((q_sca * refractive_index_weight[None, None, :]).sum(axis=-1) * particle_likelihood[None, :]).sum(axis=-1)
+        q_abs = ((q_abs * refractive_index_weight[None, None, :]).sum(axis=-1) * particle_likelihood[None, :]).sum(axis=-1)
+        extinction = {'q_ext': q_ext, 'q_sca': q_sca, 'q_abs': q_abs}
+        return cls(wavelength, theta, x, S1, S2, extinction=extinction)
 
     # ------------------  model save and load  ------------------
     def save(self, filename):
-        np.savez(filename, wavelength=self.wavelength, theta=self.theta, x=self.x, S1=self.S1, S2=self.S2)
+        extinction = np.stack(list(self.extinction.values()), axis=-1)
+        np.savez(filename, wavelength=self.wavelength, theta=self.theta, x=self.x, S1=self.S1, S2=self.S2, extinction=extinction)
 
     @classmethod
     def load(cls, filename):
-        data = np.load(filename)
-        return cls(data['wavelength'], data['theta'], data['x'], data['S1'], data['S2'])
+        data = np.load(filename, allow_pickle=True)
+        extinction = {'q_ext': data['extinction'][:, 0], 'q_sca': data['extinction'][:, 1], 'q_abs': data['extinction'][:, 2]}
+        return cls(data['wavelength'], data['theta'], data['x'], data['S1'], data['S2'], extinction=extinction)
 
     # ------------------  model prediction  ------------------
     def __call__(self, *args, **kwargs):
@@ -62,6 +72,19 @@ class MieScatteringModel:
         S11, S12, S33, S34 = self._calculate_mueller_elems(S1, S2)
         cross_section = self._get_cross_section(wavelength)
         return self.get_mueller_matrix_from_elem(S11, S12, S33, S34, cross_section=cross_section)
+
+    def get_extinction(self, wavelength):
+        q_ext, q_sca, q_abs = self.extinction['q_ext'], self.extinction['q_sca'], self.extinction['q_abs']
+        q_ext_w = interp1d(self.wavelength, q_ext, kind='linear', fill_value='extrapolate')(wavelength)
+        q_sca_w = interp1d(self.wavelength, q_sca, kind='linear', fill_value='extrapolate')(wavelength)
+        q_abs_w = interp1d(self.wavelength, q_abs, kind='linear', fill_value='extrapolate')(wavelength)
+        return q_ext_w, q_sca_w, q_abs_w
+
+    @staticmethod
+    def _calculate_extinction(wavelength, refractive_index, particle_size):
+        ext_res = MieScatteringModel._get_extinction_coeff(refractive_index, wavelength, particle_size)
+        q_ext, q_sca, q_abs = ext_res[..., 0], ext_res[..., 1], ext_res[..., 2]
+        return q_ext, q_sca, q_abs
 
     def get_scattering(self, wavelength, theta):
         wavelength_m, theta_m = np.meshgrid(wavelength, theta)
@@ -164,6 +187,14 @@ class MieScatteringModel:
             scatt = p.starmap(MieS1S2, [(mm, x, mu) for x in x_list for mu in mu_list for mm in m])
         scatt_resh = np.array(scatt).reshape((len(x_list), len(mu_list), len(m), 2))
         return scatt_resh[..., 0], scatt_resh[..., 1]  # S1, S2
+
+    @staticmethod
+    def _get_extinction_coeff(m: list, w: list, s: list) -> np.ndarray:
+        # mieq = lambda mm, x, mu: MieQ(mm, x, mu, asCrossSection=True)
+        with Pool() as p:
+            scatt = p.starmap(MieQ, [(mm, ww, ss, 1, False, True) for ww in w for ss in s for mm in m])
+        mie_q_res = np.array(scatt).reshape((len(w), len(s), len(m), 7))
+        return mie_q_res
 
 
 if __name__ == '__main__':
