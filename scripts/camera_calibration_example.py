@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import astropy.units as u
 from functools import partial
+from tqdm import tqdm
 
 # import the necessary modules
 from zodipol.estimation.calibration import Calibration
@@ -38,7 +39,7 @@ def get_initial_parameters(obs, parser, zodipol):
     phi = zodipol.imager.get_birefringence_mat(phi_val, 'linear', flat=True, angle=-np.pi / 4)
     mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, phi)
 
-    obs_biref = [zodipol.imager.apply_birefringence(o, mueller_truth) for o in obs]
+    obs_biref = [zodipol.imager.apply_birefringence(o, mueller_truth[:, None, ...]) for o in obs]
 
     polarization_angle = parser["polarization_angle"]
     _, polarization_angle_spatial_diff = np.meshgrid(np.arange(parser["resolution"][0]), np.deg2rad(np.linspace(-10, 10, parser["resolution"][1])), indexing='ij')

@@ -26,7 +26,7 @@ def estimate_DoLP(I, U, Q):
     :param Q: The Q component of the signal.
     :return: The degree of linear polarization.
     """
-    return np.sqrt(U ** 2 + Q ** 2) / (I + 1e-35 * I.unit)
+    return np.sqrt(U ** 2 + Q ** 2) / (I + 1e-80 * I.unit)
 
 
 def estimate_AoP(Q, U):

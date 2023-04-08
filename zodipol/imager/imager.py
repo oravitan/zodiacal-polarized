@@ -48,21 +48,21 @@ class Imager:
         :param channel: channel (red, green, blue)
         :return: imager quantum efficiency response
         """
-        if channel == 'red':
+        if channel == 'red' or channel == 'r':
             return np.interp(wavelength, IMAGER_RESPONSE_RED.index, IMAGER_RESPONSE_RED['<Efficiency>'])
-        elif channel == 'green':
+        elif channel == 'green' or channel == 'g':
             return np.interp(wavelength, IMAGER_RESPONSE_GREEN.index, IMAGER_RESPONSE_GREEN['<Efficiency>'])
-        elif channel == 'blue':
+        elif channel == 'blue' or channel == 'b':
             return np.interp(wavelength, IMAGER_RESPONSE_BLUE.index, IMAGER_RESPONSE_BLUE['<Efficiency>'])
         else:
             raise ValueError('Channel must be either red, green or blue')
 
     def get_wavelength_range(self, channel: str):
-        if channel == 'red':
+        if channel == 'red' or channel == 'r':
             return IMAGER_RESPONSE_RED.index
-        elif channel == 'green':
+        elif channel == 'green' or channel == 'g':
             return IMAGER_RESPONSE_GREEN.index
-        elif channel == 'blue':
+        elif channel == 'blue' or channel == 'b':
             return IMAGER_RESPONSE_BLUE.index
         else:
             raise ValueError('Channel must be either red, green or blue')

@@ -24,7 +24,7 @@ class Zodipol:
     def __init__(self, polarizance: float = 1., fov: float = None,  n_polarization_ang: int = 4, solar_cut=30 * u.deg,
                  parallel=False, n_freq: int = 5, mie_model_path=MIE_MODEL_DEFAULT_PATH, isl=True,
                  integrated_starlight_path=INTEGRATED_STARLIGHT_MODEL_PATH, planetary: bool = True, resolution=(2448, 2048),
-                 imager_params=None, zodipy_params=None):
+                 imager_params=None, zodipy_params=None, color='red'):
         imager_params = (imager_params if imager_params is not None else {})
         zodipy_params = (zodipy_params if zodipy_params is not None else {})
         self.polarization_angle = np.linspace(0, np.pi, n_polarization_ang, endpoint=False)  # Polarization angle of the observation
@@ -32,7 +32,7 @@ class Zodipol:
         self.fov = fov  # Field of view (deg)
 
         self.imager = Imager(resolution=resolution, **imager_params)  # Initialize the imager
-        self._set_imager_spectrum(n_freq=n_freq)  # Generate the spectrum
+        self._set_imager_spectrum(n_freq=n_freq, color=color)  # Generate the spectrum
 
         self.zodipy = Zodipy("dirbe", solar_cut=solar_cut, extrapolate=True, parallel=parallel, **zodipy_params)  # Initialize the model
         self._set_mie_model(mie_model_path=mie_model_path)  # Initialize the mie model
@@ -141,7 +141,7 @@ class Zodipol:
         if self.isl is None:
             return 0
         isl_map = self.isl.resize_skymap(nside)
-        jacobian = c / (self.wavelength ** 2)
+        jacobian = c / (self.frequency ** 2)
         isl_map = isl_map * jacobian[None, ...]
         # isl_map = np.stack([isl_map] * len(self.polarization_angle), axis=-1)
         return isl_map
@@ -176,14 +176,14 @@ class Zodipol:
         # planets_skymap = np.stack([planets_skymap] * len(self.polarization_angle), axis=-1)
         return planets_skymap
 
-    def _set_imager_spectrum(self, n_freq=5):
-        self.wavelength, self.frequency, self.imager_response = self._generate_spectrum(n_freq=n_freq)
+    def _set_imager_spectrum(self, n_freq=5, color='red'):
+        self.wavelength, self.frequency, self.imager_response = self._generate_spectrum(n_freq=n_freq, color=color)
         self.frequency_weight = np.ones_like(self.frequency)  # Weight of the frequencies
 
-    def _generate_spectrum(self, n_freq=5):
-        wavelength_range = self.imager.get_wavelength_range('red').values * u.nm
+    def _generate_spectrum(self, n_freq=5, color='red'):
+        wavelength_range = self.imager.get_wavelength_range(color).values * u.nm
         frequency_range = wavelength_range.to(u.THz, equivalencies=u.spectral())  # Frequency of the observation
-        imager_response = self.imager.get_camera_response(wavelength_range.value, 'red')
+        imager_response = self.imager.get_camera_response(wavelength_range.value, color)
 
         f_min = max(frequency_range.min(), 440 * u.THz)
         f_max = min(frequency_range.max(), 530 * u.THz)

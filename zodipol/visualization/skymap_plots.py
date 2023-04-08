@@ -3,6 +3,8 @@ import healpy as hp
 import matplotlib
 import matplotlib.pyplot as plt
 
+from scipy.interpolate import griddata
+
 
 def plot_satellite_image(image, title=None, resolution=None, saveto=None, **kwargs):
     title = title if title is not None else ""
@@ -51,3 +53,38 @@ def plot_skymap(skymap, title=None, saveto=None, **kwargs):
         plt.savefig(saveto)
     plt.show()
 
+
+def plot_skymap_multicolor(skymap, title=None, saveto=None, colorbar=False, log=False, vmin=None, vmax=None, **kwargs):
+    if log:
+        skymap = np.log10(skymap)
+        vmin = (np.log10(vmin) if vmin is not None else None)
+        vmax = (np.log10(vmax) if vmax is not None else None)
+
+    nside = hp.npix2nside(skymap.shape[0])
+    pixel_arr = np.arange(hp.nside2npix(nside))
+    theta, phi = hp.pix2ang(nside, pixel_arr)
+    T, P = np.meshgrid(np.linspace(0, np.pi, 1000), np.linspace(0, 2 * np.pi, 1000))
+    interp = griddata((theta, phi), skymap, (T, P), method='linear')
+
+    vmin = (np.nanmin(interp) if vmin is None else vmin)
+    vmax = (np.nanmax(interp) if vmax is None else vmax)
+    interp_norm = (interp - vmin) / (vmax - vmin)
+    interp_norm = np.nan_to_num(interp_norm, nan=0.5)
+    interp_norm = np.clip(interp_norm, 0, 1)
+
+    plt.figure(figsize=(6, 4))
+    plt.subplot(projection='mollweide')
+    plt.xticks([])
+    plt.yticks([])
+    if title is not None:
+        plt.title(title,fontsize=18)
+    plt.pcolormesh(P - np.pi, T - np.pi / 2, interp_norm, rasterized=True, **kwargs)
+    if colorbar:
+        cbar = plt.colorbar(orientation='horizontal', pad=0.1, ticks=np.linspace(0, 1, 6))
+        cbar.set_label("$MJy/sr$ (log-scale)", fontsize=18)
+        cbar.ax.set_xticklabels(np.round(np.linspace(np.nanmin(interp), np.nanmax(interp), 6), 2))
+        cbar.ax.xaxis.set_tick_params(labelsize=16)
+    plt.tight_layout()
+    if saveto is not None:
+        plt.savefig(saveto, format='pdf')
+    plt.show()

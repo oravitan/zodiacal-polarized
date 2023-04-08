@@ -63,13 +63,9 @@ def kelsall(
         solar_flux = solar_irradiance / R_helio**2
         scattering_angle = get_scattering_angle(R_los, R_helio, X_los, X_helio)
 
-        # scattering_emission = mie_scattering_model.get_mueller_matrix(wavelength, scattering_angle.squeeze())
-        phase_function = np.stack(list(map(get_phase_function, repeat(scattering_angle.squeeze()), list(zip(*phase_coefficients)))), axis=-1)
-        scattering_dop = -0.33 * np.sin(scattering_angle.squeeze()) ** 5
-        scattering_intensity = np.stack([phase_function, phase_function * scattering_dop[..., None], np.zeros_like(phase_function), np.zeros_like(phase_function)], axis=-1)
-
-        # scattering_intensity = np.einsum('...jk,kw->...jw', scattering, unpolarized_stokes[0, ...])
-        emission += albedo[None, :, None, None] * solar_flux[..., None, None] * scattering_intensity[..., None]
+        scattering_emission = mie_scattering_model.get_mueller_matrix(wavelength, scattering_angle.squeeze())
+        scattering_intensity = np.einsum('...jk,kw->...jw', scattering_emission, unpolarized_stokes[0, ...])
+        emission += albedo[None, :, None, None] * solar_flux[..., None, None] * scattering_intensity
     emission_density = emission * get_density_function(X_helio)[..., None, None]
 
     n_sca = X_los / R_los
