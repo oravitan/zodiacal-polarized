@@ -7,60 +7,45 @@ from scipy.interpolate import RegularGridInterpolator, interp1d
 from itertools import repeat
 
 from zodipol.visualization.mie_plotting import plot_mueller_matrix_elems, plot_intensity_polarization
-from zodipol.mie_scattering.particle_size_model import ParticleSizeModel
+from zodipol.mie_scattering.particle_size_model import ParticleTable, DEFAULT_PARTICLE_MODEL
 from zodipol.utils.constants import refractive_ind
 
 
 class MieScatteringModel:
     # ------------------  model training  ------------------
-    def __init__(self, wavelength, theta, x, S1, S2, extinction=None):
+    def __init__(self, wavelength, theta, S1, S2, extinction=None):
         self.wavelength = np.array(wavelength)  # wavelength in um
         self.theta = theta  # scattering angle in rad
         self.mu = np.cos(self.theta)  # cosine of scattering angle
-        self.x = x  # Mie parameter
         self.S1, self.S2 = S1, S2  # Mie scattering amplitudes
         self.S1_grid = RegularGridInterpolator((self.wavelength, self.theta), self.S1)  # Mie scattering amplitude interpolator
         self.S2_grid = RegularGridInterpolator((self.wavelength, self.theta), self.S2)  # Mie scattering amplitude interpolator
         self.extinction = extinction  # extinction cross section
 
     @classmethod
-    def train(cls, wavelength, refractive_index_dict=None, particle_size: ParticleSizeModel = None, theta_res=361, kernel_size=20):
-        if refractive_index_dict is None:
-            refractive_index_dict = refractive_ind
-        if particle_size is None:
-            particle_size = ParticleSizeModel()
+    def train(cls, wavelength, particle_table: ParticleTable = None, theta_res=361, kernel_size=20):
+        if particle_table is None:
+            particle_table = DEFAULT_PARTICLE_MODEL
         wavelength = np.array(wavelength)  # wavelength in nm
-        refractive_index = np.array(list(refractive_index_dict.keys()))
-        refractive_index_weight = np.array(list(refractive_index_dict.values()))
-        particle_likelihood = particle_size.particle_likelihood
-        particle_size = particle_size.particle_size
 
         theta = np.linspace(0, np.pi, theta_res)  # scattering angle in rad
         mu = np.cos(theta)  # cosine of scattering angle
-        x = np.pi * particle_size[..., None] / wavelength[None, ...]  # Mie parameter
+        S1, S2 = cls._calculate_S1S2(wavelength, particle_table, mu, kernel_size=kernel_size)
 
-        S1, S2 = cls._calculate_S1S2(x, refractive_index, mu, particle_likelihood, refractive_index_weight)
-        kernel = np.ones((1, kernel_size)) / kernel_size
-        S1 = convolve(S1, kernel, mode='nearest')
-        S2 = convolve(S2, kernel, mode='nearest')
-
-        q_ext, q_sca, q_abs = cls._calculate_extinction(wavelength, refractive_index, particle_size)
-        q_ext = ((q_ext * refractive_index_weight[None, None, :]).sum(axis=-1) * particle_likelihood[None, :]).sum(axis=-1)
-        q_sca = ((q_sca * refractive_index_weight[None, None, :]).sum(axis=-1) * particle_likelihood[None, :]).sum(axis=-1)
-        q_abs = ((q_abs * refractive_index_weight[None, None, :]).sum(axis=-1) * particle_likelihood[None, :]).sum(axis=-1)
+        q_ext, q_sca, q_abs = cls._calculate_extinction(wavelength, particle_table)
         extinction = {'q_ext': q_ext, 'q_sca': q_sca, 'q_abs': q_abs}
-        return cls(wavelength, theta, x, S1, S2, extinction=extinction)
+        return cls(wavelength, theta, S1, S2, extinction=extinction)
 
     # ------------------  model save and load  ------------------
     def save(self, filename):
         extinction = np.stack(list(self.extinction.values()), axis=-1)
-        np.savez(filename, wavelength=self.wavelength, theta=self.theta, x=self.x, S1=self.S1, S2=self.S2, extinction=extinction)
+        np.savez(filename, wavelength=self.wavelength, theta=self.theta, S1=self.S1, S2=self.S2, extinction=extinction)
 
     @classmethod
     def load(cls, filename):
         data = np.load(filename, allow_pickle=True)
         extinction = {'q_ext': data['extinction'][:, 0], 'q_sca': data['extinction'][:, 1], 'q_abs': data['extinction'][:, 2]}
-        return cls(data['wavelength'], data['theta'], data['x'], data['S1'], data['S2'], extinction=extinction)
+        return cls(data['wavelength'], data['theta'], data['S1'], data['S2'], extinction=extinction)
 
     # ------------------  model prediction  ------------------
     def __call__(self, *args, **kwargs):
@@ -81,9 +66,16 @@ class MieScatteringModel:
         return q_ext_w, q_sca_w, q_abs_w
 
     @staticmethod
-    def _calculate_extinction(wavelength, refractive_index, particle_size):
-        ext_res = MieScatteringModel._get_extinction_coeff(refractive_index, wavelength, particle_size)
-        q_ext, q_sca, q_abs = ext_res[..., 0], ext_res[..., 1], ext_res[..., 2]
+    def _calculate_extinction(wavelength, particle_table):
+        q_ext, q_sca, q_abs = 0, 0, 0
+        for particle, particle_prc in particle_table.get_model_list():
+            refractive_index = particle.refractive_index
+            particle_size = particle.particle_size
+            cur_ext_res = MieScatteringModel._get_extinction_coeff(refractive_index, wavelength, particle_size)
+            cur_q_ext, cur_q_sca, cur_q_abs = cur_ext_res[..., 0], cur_ext_res[..., 1], cur_ext_res[..., 2]
+            q_ext += particle_prc * np.sum(cur_q_ext * particle.particle_likelihood[None, :], axis=-1)
+            q_sca += particle_prc * np.sum(cur_q_sca * particle.particle_likelihood[None, :], axis=-1)
+            q_abs += particle_prc * np.sum(cur_q_abs * particle.particle_likelihood[None, :], axis=-1)
         return q_ext, q_sca, q_abs
 
     def get_scattering(self, wavelength, theta):
@@ -150,28 +142,25 @@ class MieScatteringModel:
         return S11, S12, S33, S34
 
     @staticmethod
-    def _calculate_S1S2(x, refractive_index, mu, particle_likelihood, refractive_index_weight):
+    def _calculate_S1S2(wavelength, particle_table: ParticleTable, mu, kernel_size: int = None):
         """
         Calculate the scattering function for a given particle size distribution, spectrum, and scattering angle.
         :return: scattering function (size param x cos scattering angle x refractive index x S1/S2)
         """
-        # round the particle size to reduce the calculation time
-        x_flat = x.ravel()
-        x_flat[x_flat > 100] = 100  # round particle in the geometric optics regime
-        x_unique, x_unique_ind = np.unique(x_flat, return_inverse=True)
+        S1, S2 = 0, 0
+        for particle, particle_prc in particle_table.get_model_list():
+            refractive_index = particle.refractive_index
+            x = np.pi * particle.particle_size[..., None] / wavelength[None, ...]
+            cur_S1, cur_S2 = MieScatteringModel._get_scattering_function(refractive_index, x, mu)
 
-        # calculate the scattering function for each unique size parameter
-        S1, S2 = MieScatteringModel._get_scattering_function(refractive_index, x_unique, mu)
+            S1 = S1 + particle_prc * np.sum(cur_S1 * particle.particle_likelihood[..., None, None], axis=0)
+            S2 = S2 + particle_prc * np.sum(cur_S2 * particle.particle_likelihood[..., None, None], axis=0)
 
-        # reshape the scattering function to the original shape
-        S1, S2 = S1[x_unique_ind, ...], S2[x_unique_ind, ...]
-        S1, S2 = [s.reshape(x.shape + mu.shape + (2,)) for s in [S1, S2]]
-
-        S1_avg_ref = (S1 * refractive_index_weight).sum(axis=-1)
-        S2_avg_ref = (S2 * refractive_index_weight).sum(axis=-1)
-        S1_avg = (S1_avg_ref * particle_likelihood[:, None, None]).sum(axis=0)
-        S2_avg = (S2_avg_ref * particle_likelihood[:, None, None]).sum(axis=0)
-        return S1_avg, S2_avg
+        if kernel_size is not None:  # smooth S1, S2 with a moving average
+            kernel = np.ones((1, kernel_size)) / kernel_size
+            S1 = convolve(S1, kernel, mode='nearest')
+            S2 = convolve(S2, kernel, mode='nearest')
+        return S1, S2
 
     @staticmethod
     def _get_scattering_function(m: list, x_list: list | np.ndarray, mu_list: list) -> (np.ndarray, np.ndarray):
@@ -183,17 +172,18 @@ class MieScatteringModel:
         :param mu_list: list of cosine of scattering angle
         :return: scattering function (size param x cos scattering angle x refractive index x S1/S2)
         """
+        x_flat = x_list.reshape((-1))
         with Pool() as p:
-            scatt = p.starmap(MieS1S2, [(mm, x, mu) for x in x_list for mu in mu_list for mm in m])
-        scatt_resh = np.array(scatt).reshape((len(x_list), len(mu_list), len(m), 2))
+            scatt = p.starmap(MieS1S2, [(m, x, mu) for x in x_flat for mu in mu_list])
+        scatt_resh = np.array(scatt).reshape(x_list.shape + (len(mu_list), 2))
         return scatt_resh[..., 0], scatt_resh[..., 1]  # S1, S2
 
     @staticmethod
     def _get_extinction_coeff(m: list, w: list, s: list) -> np.ndarray:
         # mieq = lambda mm, x, mu: MieQ(mm, x, mu, asCrossSection=True)
         with Pool() as p:
-            scatt = p.starmap(MieQ, [(mm, ww, ss, 1, False, True) for ww in w for ss in s for mm in m])
-        mie_q_res = np.array(scatt).reshape((len(w), len(s), len(m), 7))
+            scatt = p.starmap(MieQ, [(m, ww, ss, 1, False, True) for ww in w for ss in s])
+        mie_q_res = np.array(scatt).reshape((len(w), len(s), 7))
         return mie_q_res
 
 
