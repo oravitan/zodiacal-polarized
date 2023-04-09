@@ -32,6 +32,7 @@ class Calibration:
         biref_mueller = self.zodipol.imager.get_birefringence_mueller_matrix(delta, alpha)
         biref_obs = self.zodipol.imager.apply_birefringence(o, biref_mueller)
         img_model = self.zodipol.make_camera_images(biref_obs, p, eta, n_realizations=1, add_noise=False)
+        img_model = self.zodipol.post_process_images(img_model)
         return img_model
 
     def calibrate(self, images_orig, n_itr=5, mode="all", disable=False, callback=None):
@@ -78,6 +79,20 @@ class Calibration:
             return cost
 
         jac_sparsity = eye(len(self.p))
+        bounds = self.get_property_bounds(property_name)
         x0 = getattr(self, property_name).squeeze()
-        p_lsq = least_squares(cost_function, x0=x0, jac_sparsity=jac_sparsity, ftol=1e-3, max_nfev=20, verbose=2)
+        p_lsq = least_squares(cost_function, x0=x0, jac_sparsity=jac_sparsity, ftol=1e-5, max_nfev=30, verbose=2, bounds=bounds)
         return p_lsq.x.reshape((-1))
+
+    @staticmethod
+    def get_property_bounds(property_name):
+        if property_name == "p":
+            return 0.5, 1
+        elif property_name == "eta":
+            return -np.pi/4, np.pi/4
+        elif property_name == "delta":
+            return -np.pi/2, np.pi/2
+        elif property_name == "alpha":
+            return -np.pi/2, np.pi/2
+        else:
+            raise ValueError("Unknown property name")

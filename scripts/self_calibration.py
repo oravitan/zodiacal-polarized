@@ -13,7 +13,7 @@ from zodipol.zodipol import Zodipol
 
 
 def get_measurements(zodipol, parser, n_rotations=40):
-    rotations_file_path = 'saved_models/self_calibration_40.pkl'
+    rotations_file_path = 'saved_models/self_calibration_temp.pkl'
     rotation_list = np.linspace(0, 360, n_rotations, endpoint=False)
     if os.path.isfile(rotations_file_path):
         # saved rotations pickle file exists
@@ -45,8 +45,16 @@ def get_iteration_cost(polarizance_real, polarizance_est_reshape_nan, polarizati
 def generate_observations(zodipol, parser, n_rotations=40):
     motion_blur = 360 / n_rotations / zodipol.imager.exposure_time.value * u.deg
     obs_rot, rotation_list = get_measurements(zodipol, parser, n_rotations=n_rotations)
-    # obs_rot = [o.add_radial_blur(motion_blur, list(parser["resolution"])) for o in obs_rot]
-    # obs_rot = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"]) for o in obs_rot]
+    obs_rot = [o.add_radial_blur(motion_blur, list(parser["resolution"])) for o in obs_rot]
+    obs_rot = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"]) for o in obs_rot]
+
+    # add birefringence
+    delta_val, phi_val = np.pi / 8, np.pi / 6
+    # delta_val, phi_val = 0, 0
+    delta = zodipol.imager.get_birefringence_mat(delta_val, 'center', flat=True, inv=True)
+    phi = zodipol.imager.get_birefringence_mat(phi_val, 'linear', flat=True, angle=-np.pi / 4)
+    mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, phi)
+    obs_biref = [zodipol.imager.apply_birefringence(o, mueller_truth) for o in obs_rot]
 
     # create satellite polarizance and angle of polarization variables
     polarization_angle = parser["polarization_angle"]
@@ -55,46 +63,44 @@ def generate_observations(zodipol, parser, n_rotations=40):
                                                      indexing='ij')
 
     # angular_amount = np.random.choice(np.linspace(-1, 1, n_rotations), size=(n_rotations), replace=False)
-    angular_amount = np.linspace(0, 0, n_rotations)
-    # angular_amount = np.linspace(-1, 1, n_rotations)
-    pa_ts_diff = polarization_angle_spatial_diff.flatten()[:, None, None][..., None] * angular_amount
-    # pa_ts_diff = np.deg2rad(3) + polarization_angle_spatial_diff.flatten()[:, None, None][..., None] * angular_amount
+    angular_amount = np.linspace(-1, 1, n_rotations)
+    # angular_amount = np.linspace(0, 0, n_rotations)
+    pa_ts_diff = np.deg2rad(3) + polarization_angle_spatial_diff.flatten()[:, None, None][..., None] * angular_amount
+    # pa_ts_diff = polarization_angle_spatial_diff.flatten()[:, None, None][..., None] * angular_amount
     polarization_angle_real = polarization_angle[None, None, :, None] + pa_ts_diff
 
     polarizance, _ = np.meshgrid(np.linspace(-1, 0, parser["resolution"][0]), np.arange(parser["resolution"][1]),
                                  indexing='ij')
-    polarizance_real = polarizance.reshape((len(obs_rot[0]), 1, 1))
+    polarizance_real = polarizance.reshape((len(obs_biref[0]), 1, 1))
     # polariz_amount = np.random.choice(np.linspace(0, 0.4, n_rotations), size=(n_rotations), replace=False)
     polariz_amount = np.linspace(0, 0.4, n_rotations)
-    # polariz_amount = np.linspace(0, 0, n_rotations)  # TODO: remove this line
+    # polariz_amount = np.linspace(0, 0, n_rotations)
     polarizance_real = 0.9 + polarizance_real[..., None] * polariz_amount
+    # polarizance_real = 1 + polarizance_real[..., None] * polariz_amount
 
     # create observations images
-    obs_orig = [zodipol.make_camera_images(obs_rot[ii], polarizance_real[..., ii], polarization_angle_real[..., ii],
+    obs_orig = [zodipol.make_camera_images(obs_biref[ii], polarizance_real[..., ii], polarization_angle_real[..., ii],
                                                  n_realizations=parser["n_realizations"], add_noise=True) for ii in range(n_rotations)]
     images_orig = np.stack(obs_orig, axis=-1)
     images_res = images_orig.reshape((parser["resolution"] + list(images_orig.shape[1:])))
-    return images_res, rotation_list, polarizance_real.squeeze(), pa_ts_diff.squeeze()
+    return images_res, rotation_list, polarizance_real.squeeze(), pa_ts_diff.squeeze(), mueller_truth
 
 
-def perform_estimation(zodipol, parser, rotation_list, images_res_flat, polarizance_real, polarization_angle_real, n_itr=10):
+def perform_estimation(zodipol, parser, rotation_list, images_res_flat, polarizance_real, polarization_angle_real, mueller_truth, n_itr=10):
     theta0, phi0 = zodipol._create_sky_coords(theta=parser["direction"][0], phi=parser["direction"][1], roll=0 * u.deg, resolution=parser["resolution"])
-    callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=0)
+    callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
     self_calib = SelfCalibration(images_res_flat, rotation_list, zodipol, parser, theta=theta0, phi=phi0)
-    p, eta, _, _, cost_itr, clbk_itr = self_calib.calibrate(n_itr=n_itr, mode="P,eta", callback=callback_partial)
-
-    interp_images_res = self_calib.align_images(images_res_flat.value, rotation_list)
-    nan_ind = np.isnan(interp_images_res).any(axis=-2).any(axis=-1, keepdims=True)
-    polarizance_est_reshape = np.where(nan_ind, np.nan, p)
-    polarization_ang_full = np.where(nan_ind, np.nan, eta)
-    return cost_itr, polarizance_est_reshape, polarization_ang_full
+    cost_itr, clbk_itr = self_calib.calibrate(n_itr=n_itr, mode="all", callback=callback_partial)
+    p, eta, delta, alpha = self_calib.get_properties()
+    return cost_itr, p, eta, delta, alpha, clbk_itr
 
 
 def cost_callback(calib: SelfCalibration, p, eta, mueller):
-    mueller_est = calib.zodipol.imager.get_birefringence_mueller_matrix(calib.delta, calib.alpha)
-    p_cost = np.mean((p - calib.p)**2)
-    eta_cost = np.mean((eta - calib.eta)**2)
-    mueller_cost = np.mean((mueller - mueller_est)**2)
+    cp, ceta, cdelta, calpha = calib.get_properties()
+    mueller_est = calib.zodipol.imager.get_birefringence_mueller_matrix(cdelta, calpha)
+    p_cost = np.nanmean((p - cp)**2)
+    eta_cost = np.nanmean((eta - ceta)**2)
+    mueller_cost = np.nanmean((mueller[:, None, ...] - mueller_est)**2)
     return p_cost, eta_cost, mueller_cost
 
 
@@ -148,6 +154,29 @@ def plot_cost(n_rotation_list, polariz_bias_l, pol_ang_bias_l, saveto=None, cost
         plt.savefig(saveto)
     plt.show()
 
+def plot_mueller(mueller, parser, cbar=False, saveto=None):
+    fig, ax = plt.subplots(4,4, figsize=(6,6), sharex='col', sharey='row', subplot_kw={'xticks': [], 'yticks': []})
+    for i in range(4):
+        for j in range(4):
+            c = ax[i,j].imshow(mueller[..., i, j].reshape(parser["resolution"]), vmin=mueller.min(), vmax=mueller.max())
+    ax[0,0].set_ylabel(0, fontsize=16)
+    ax[1,0].set_ylabel(1, fontsize=16)
+    ax[2,0].set_ylabel(2, fontsize=16)
+    ax[3,0].set_ylabel(3, fontsize=16)
+    ax[3,0].set_xlabel(0, fontsize=16)
+    ax[3,1].set_xlabel(1, fontsize=16)
+    ax[3,2].set_xlabel(2, fontsize=16)
+    ax[3,3].set_xlabel(3, fontsize=16)
+    # fig.colorbar(c, ax=ax.ravel().tolist())
+    if cbar:
+        cb = fig.colorbar(c, ax=ax.ravel().tolist())
+        cb.ax.tick_params(labelsize=14)
+    else:
+        plt.tight_layout(w_pad=-15.0, h_pad=1.0)
+    if saveto is not None:
+        plt.savefig(saveto)
+    plt.show()
+
 
 def main():
     parser = ArgParser()
@@ -155,40 +184,60 @@ def main():
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
                       n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
                       resolution=parser["resolution"], imager_params=parser["imager_params"])
-    n_itr = 5
+    n_itr = 100
 
     # generate observations
-    rotation_cost_itr = []
-    # n_rotation_list = np.linspace(5, 21, 10).astype(int)
-    n_rotation_list = [9]  # TODO: remove this
-    for n_rotations in n_rotation_list:
-        images_res, rotation_list, polarizance_real, polarization_angle_real = generate_observations(zodipol, parser, n_rotations=n_rotations)
-        images_res_flat = images_res.reshape((np.prod(parser["resolution"]), parser["n_polarization_ang"], n_rotations))
-        cost_itr, p_hat, eta_hat = perform_estimation(zodipol, parser, rotation_list, images_res_flat,
-                                                      polarizance_real, polarization_angle_real, n_itr=n_itr)
-        rotation_cost_itr.append(cost_itr)
+    n_rotations = 9
+    images_res, rotation_list, polarizance_real, polarization_angle_real, mueller_truth = generate_observations(zodipol, parser, n_rotations=n_rotations)
+    images_res_flat = images_res.reshape((np.prod(parser["resolution"]), parser["n_polarization_ang"], n_rotations))
+    cost_itr, p_hat, eta_hat, delta, alpha, clbk_itr = perform_estimation(zodipol, parser, rotation_list, images_res_flat,
+                                                  polarizance_real, polarization_angle_real, mueller_truth, n_itr=n_itr)
+    p_cost, eta_cost, mueller_cost = list(zip(*clbk_itr))
 
-        fig, ax = plt.subplots(1,1)
-        plt.plot(cost_itr, lw=3)
-        plt.xlabel('Iteration number', fontsize=16)
-        plt.ylabel('Iteration MSE', fontsize=16)
-        ax.tick_params(labelsize=16)
-        plt.grid()
-        fig.tight_layout()
+    fig, ax = plt.subplots(4, 1, figsize=(6, 6), sharex=True)
+    ax[0].plot(cost_itr, lw=3)
+    ax[0].set_ylabel('$\hat{I}_{cam}(l)$ MSE', fontsize=16)
+    ax[0].tick_params(labelsize=16)
+    ax[0].grid()
+
+    ax[1].plot(p_cost, lw=3)
+    ax[1].set_ylabel('$\hat{P}$ MSE', fontsize=16)
+    ax[1].tick_params(labelsize=16)
+    ax[1].grid()
+
+    ax[2].plot(eta_cost, lw=3)
+    ax[2].set_ylabel('$\hat{\eta}$ MSE', fontsize=16)
+    ax[2].tick_params(labelsize=16)
+    ax[2].grid()
+
+    ax[3].plot(mueller_cost, lw=3)
+    ax[3].set_ylabel('$\hat{M}_{mueller}$ MSE', fontsize=16)
+    ax[3].tick_params(labelsize=16)
+    ax[3].grid()
+    ax[3].set_xlabel('Iteration number', fontsize=16)
+    fig.tight_layout()
+    plt.show()
+
+    for ii in range(n_rotations):
+        plot_deviation_comp(parser, polarizance_real, p_hat, polarization_angle_real,
+                            eta_hat, set_colors=True, ii=ii)
+    for ii in range(n_rotations):
+        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
+        c1 = ax1.imshow(delta[..., ii].reshape(parser["resolution"]))
+        c2 = ax2.imshow(alpha[..., ii].reshape(parser["resolution"]))
+        plt.colorbar(c1, ax=ax1)
+        plt.colorbar(c2, ax=ax2)
+        ax1.set_title('$\hat{\delta}$', fontsize=18)
+        ax2.set_title('$\hat{\\alpha}$', fontsize=18)
         plt.show()
+    pol_mean_deviation = polarizance_real.squeeze() - np.nanmean(polarizance_real, axis=-1, keepdims=True)
+    pol_est_mean_deviation = p_hat - np.nanmean(p_hat, axis=-1, keepdims=True)
+    pol_dev_err = pol_mean_deviation - pol_est_mean_deviation
 
-        for ii in range(n_rotations):
-            plot_deviation_comp(parser, polarizance_real, p_hat, polarization_angle_real,
-                                eta_hat, set_colors=True, ii=ii)
-        pol_mean_deviation = polarizance_real.squeeze() - np.nanmean(polarizance_real, axis=-1, keepdims=True)
-        pol_est_mean_deviation = p_hat - np.nanmean(p_hat, axis=-1, keepdims=True)
-        pol_dev_err = pol_mean_deviation - pol_est_mean_deviation
-
-        ang_mean_deviation = polarization_angle_real.squeeze() - np.nanmean(polarization_angle_real, axis=-1, keepdims=True)
-        ang_est_mean_deviation = eta_hat - np.nanmean(eta_hat, axis=-1, keepdims=True)
-        ang_dev_err = ang_mean_deviation - ang_est_mean_deviation
-        plot_cost(rotation_list, np.nanmean(pol_dev_err ** 2, axis=0), np.nanmean(ang_dev_err ** 2, axis=0), cost_type='MSE', saveto='outputs/self_estimation_mse.pdf', xlabel='Deviation Amount')
-        pass
+    ang_mean_deviation = polarization_angle_real.squeeze() - np.nanmean(polarization_angle_real, axis=-1, keepdims=True)
+    ang_est_mean_deviation = eta_hat - np.nanmean(eta_hat, axis=-1, keepdims=True)
+    ang_dev_err = ang_mean_deviation - ang_est_mean_deviation
+    plot_cost(rotation_list, np.nanmean(pol_dev_err ** 2, axis=0), np.nanmean(ang_dev_err ** 2, axis=0), cost_type='MSE', saveto='outputs/self_estimation_mse.pdf', xlabel='Deviation Amount')
 
 
 if __name__ == '__main__':

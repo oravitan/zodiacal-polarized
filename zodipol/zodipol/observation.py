@@ -26,6 +26,7 @@ class Observation:
 
     @classmethod
     def from_image(cls, image, polarizance, polarization_angle):
+        polarization_angle = np.broadcast_to(polarization_angle, image.shape)
         I, Q, U = estimate_IQU(image, polarizance, polarization_angle)
         return cls(I, Q, U)
 

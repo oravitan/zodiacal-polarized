@@ -37,4 +37,4 @@ def estimate_AoP(Q, U):
     :param Q: The Q component of the signal.
     :return: The degree of linear polarization.
     """
-    return 0.5 * np.arctan2(U, (Q + 1e-35 * Q.unit))
+    return 0.5 * np.arctan(U / (Q + 1e-80 * Q.unit))

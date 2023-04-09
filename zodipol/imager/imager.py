@@ -67,6 +67,10 @@ class Imager:
         else:
             raise ValueError('Channel must be either red, green or blue')
 
+    @staticmethod
+    def get_pixel_colors():
+        return ["red", "green", "blue"]
+
     # ------------------------------------------------
     # ------------- Transformations ------------------
     # ------------------------------------------------
@@ -85,11 +89,13 @@ class Imager:
         if frequency is not None:
             df = np.gradient(frequency)
             n_electrons = np.einsum('ij...,j->i...', energy, df / (h * frequency) * weights)  # Number of electrons per frequency
+            # n_electrons = np.trapz(energy * (weights / (h * frequency))[None, :, None], frequency, axis=1)
         else:
             frequency = wavelength.to(u.THz, equivalencies=u.spectral())
-            df = np.gradient(frequency)
             jacobian = - c / (wavelength ** 2)
+            df = np.gradient(frequency)
             n_electrons = np.einsum('ij...,j->i...', energy, jacobian * df / (h * frequency) * weights)
+            # n_electrons = np.trapz(energy * (jacobian / (h * frequency) * weights)[None, :, None], frequency, axis=1)
 
         # n_electrons = np.sum(n_electrons_per_freq, axis=1)  # Number of electrons integral
         n_electrons = n_electrons.si  # Number of electrons in SI units
@@ -167,7 +173,7 @@ class Imager:
         :return: number of electrons with readout noise
         """
         image_size = n_electrons.shape
-        readout_noise = np.floor(np.random.normal(0, self.std_read, image_size))
+        readout_noise = np.random.normal(0, self.std_read, image_size)
         return n_electrons + readout_noise
 
     def _dark_current_noise(self, n_electrons):
@@ -178,7 +184,8 @@ class Imager:
         :return: number of electrons with dark current noise
         """
         center = self.camera_dark_current_estimation()
-        dark_current = np.floor(np.random.normal(center, (self.beta_t * self.exposure_time)**0.25, n_electrons.shape))
+        # center = 0  # we assume it's accounted for
+        dark_current = np.random.normal(center, (self.beta_t * self.exposure_time)**0.25, n_electrons.shape)
         return n_electrons + dark_current
 
     def _quantization_noise(self, n_electrons):
@@ -196,7 +203,7 @@ class Imager:
     # ------------------------------------------------
     def apply_birefringence(self, obs, biref_mat):
         observation_mat = obs.to_numpy()
-        observation_biref = np.einsum('...ij,...jk->...ik', biref_mat, observation_mat[..., None])
+        observation_biref = np.einsum('a...ij,a...jk->a...ik', biref_mat, observation_mat[..., None])
         I, Q, U = observation_biref[..., 0, 0], observation_biref[..., 1, 0], observation_biref[..., 2, 0]
         return Observation(I, Q, U, theta=obs.theta, phi=obs.phi)
 

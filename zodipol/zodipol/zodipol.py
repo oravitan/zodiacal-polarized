@@ -68,8 +68,27 @@ class Zodipol:
         I += planets_skymap + isl_map
         return Observation(I, Q, U)
 
+    def make_camera_images_multicolor(self, *args, **kwargs):
+        colors = self.imager.get_pixel_colors()
+        images = []
+        for color in colors:
+            images.append(self.make_camera_images(*args, color=color, **kwargs))
+        return np.stack(images, axis=-2)
+
+    def images_to_observation(self, images, polarizance, polarization_angle, color='red'):
+        images = self.post_process_images(images, color=color)
+        obs = Observation.from_image(images, polarizance, polarization_angle)
+        return obs
+
+    def post_process_images(self, images, color='red'):
+        imager_response = self.get_imager_response(color=color)
+        dark_current_electrons = self.imager.camera_dark_current_estimation()
+        dark_current = self.imager.number_of_electrons_to_intensity(dark_current_electrons, self.frequency, imager_response)
+        images -= dark_current.squeeze()
+        return images
+
     def make_camera_images(self, obs: Observation, polarizance=None, polarization_angle=None, add_noise=True,
-                           n_realizations=1, fillna=None, noise_params: dict = None):
+                           n_realizations=1, fillna=None, noise_params: dict = None, color='red'):
         """
         Make a camera image from frequency-dependent the observation
         :param obs: Observation of the sky
@@ -82,18 +101,19 @@ class Zodipol:
         polarizance = polarizance if polarizance is not None else self.polarizance
         polarization_angle = polarization_angle if polarization_angle is not None else self.polarization_angle
         noise_params = (noise_params if noise_params is not None else {})
+        imager_response = self.get_imager_response(color=color)
         realization_list = []  # List of the realizations
         for ii in range(n_realizations):  # take multiple relatizations of the projection
             binned_emission_real = IQU_to_image(obs.I, obs.Q, obs.U, polarizance, polarization_angle)
 
             # Calculate the number of photons
-            n_electrons_real = self.imager.intensity_to_number_of_electrons(binned_emission_real, frequency=self.frequency, weights=self.imager_response)
+            n_electrons_real = self.imager.intensity_to_number_of_electrons(binned_emission_real, frequency=self.frequency, weights=imager_response)
             if add_noise:  # Add noise to the image
                 n_electrons_real = self.imager.imager_noise_model(n_electrons_real, **noise_params)
             else:  # assume no image noise
                 n_electrons_real += self.imager.camera_dark_current_estimation()
                 n_electrons_real = self.imager.camera_post_process(n_electrons_real)
-            camera_intensity_real = self.imager.number_of_electrons_to_intensity(n_electrons_real, self.frequency, self.imager_response)
+            camera_intensity_real = self.imager.number_of_electrons_to_intensity(n_electrons_real, self.frequency, imager_response)
             if fillna is not None:
                 camera_intensity_real = np.nan_to_num(camera_intensity_real, nan=fillna * camera_intensity_real.unit)
             realization_list.append(camera_intensity_real)
@@ -177,19 +197,15 @@ class Zodipol:
         return planets_skymap
 
     def _set_imager_spectrum(self, n_freq=5, color='red'):
-        self.wavelength, self.frequency, self.imager_response = self._generate_spectrum(n_freq=n_freq, color=color)
+        self.wavelength, self.frequency = self._generate_spectrum(n_freq=n_freq, color=color)
         self.frequency_weight = np.ones_like(self.frequency)  # Weight of the frequencies
 
-    def _generate_spectrum(self, n_freq=5, color='red'):
-        wavelength_range = self.imager.get_wavelength_range(color).values * u.nm
-        frequency_range = wavelength_range.to(u.THz, equivalencies=u.spectral())  # Frequency of the observation
-        imager_response = self.imager.get_camera_response(wavelength_range.value, color)
+    def get_imager_response(self, color='red'):
+        return self.imager.get_camera_response(self.wavelength.value, color)
 
-        f_min = max(frequency_range.min(), 440 * u.THz)
-        f_max = min(frequency_range.max(), 530 * u.THz)
+    def _generate_spectrum(self, n_freq=5, color='red'):
+        f_min, f_max = 430 * u.THz, 995 * u.THz  # Frequency of the observation
         frequency = np.linspace(f_min, f_max, n_freq, endpoint=True)
         wavelength_interp = frequency.to(u.nm, equivalencies=u.spectral())
-        imager_response_interp = np.interp(wavelength_interp, wavelength_range, imager_response)
-
-        return wavelength_interp, frequency, imager_response_interp
+        return wavelength_interp, frequency
 
