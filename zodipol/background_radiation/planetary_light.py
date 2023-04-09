@@ -87,10 +87,11 @@ class PlanetaryLight:
         planet_distance_from_sun = self._get_planet_distance_from_sun(planet_name, time)
         solar_flux = self._get_solar_flux_density_at_distance(planet_distance_from_sun, wavelength)
         planet_scattering_angle = self._get_planet_scattering_angle(planet_name, time)
+        camera_distance = self._get_planet_distance_from_earth(planet_name, time)
 
         angle_function = self._lambert_angular_function(planet_scattering_angle)
         gamma = 2 * planet_bond_albedo / (3 * np.pi) * planet_radius ** 2 * solar_flux
-        lambertian_scattering = gamma * angle_function
+        lambertian_scattering = gamma * angle_function / (4 * np.pi * camera_distance**2)
         return lambertian_scattering.to(u.Unit('W / m^2 Hz sr'))
 
     @staticmethod
@@ -109,6 +110,12 @@ class PlanetaryLight:
         sun = get_body('sun', time)
         return sun.separation_3d(planet)
 
+    def _get_planet_distance_from_earth(self, planet_name: str, time: str | Time):
+        time = self._validate_time(time)
+        planet = self._get_planet_location(planet_name, time)
+        earth = get_body('earth', time)
+        return earth.separation_3d(planet)
+
     def _get_planet_scattering_angle(self, planet_name: str, time: str | Time):
         time = self._validate_time(time)
         planet = self._get_planet_location(planet_name, time)
@@ -121,7 +128,7 @@ class PlanetaryLight:
     @staticmethod
     def _get_solar_flux_density_at_distance(distance, wavelength):
         bb = BlackBody(temperature=sun_temperature)
-        return bb(wavelength) / (4 * np.pi * distance ** 2)
+        return bb(wavelength) * sun_radius**2 / distance**2
 
     @staticmethod
     def _lambert_angular_function(angle):
