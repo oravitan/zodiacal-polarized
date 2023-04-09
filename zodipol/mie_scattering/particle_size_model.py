@@ -55,7 +55,7 @@ class ParticleTable:
     @staticmethod
     def _validate_inputs(particle_model, particle_percentage):
         assert len(particle_model) == len(particle_percentage), "The length of particle model and particle percentage should be the same"
-        assert np.sum(particle_percentage) == 1, "The sum of particle percentage should be 1"
+        assert abs(np.sum(particle_percentage)-1) < 1e-5, "The sum of particle percentage should be 1"
         assert all([isinstance(particle, ParticleModel) for particle in particle_model]), "The particle model should be a list of ParticleModel"
 
     def get_particle_size_prc(self, size):
