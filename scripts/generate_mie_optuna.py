@@ -17,6 +17,8 @@ C = list(zip(*PHASE_FUNCTION_DIRBE))[:3]
 C_w = dict(zip(wavelength.round().astype(int), C))
 C_w = {1250: C_w[1250]}
 
+simulation_params = [{"m_i": [2.0, 3.0], "m_j": [1.0, 1.5]}, {"m_i": [1.3, 2.0], "m_j": [0.0, 0.5]}]
+
 
 def distance_from_kelsall(theta, func, c):
     kelsall_125um = get_phase_function(theta, c)
@@ -38,13 +40,23 @@ def scattering_dop(mueller):
     return mse_dop
 
 
-def generate_model(optimization_input, spectrum):
-    particle1 = ParticleModel(optimization_input["m1_i"] + 1j * optimization_input["m1_j"],
-                              optimization_input["m1_alpha"], optimization_input["m1_beta"])
-    particle2 = ParticleModel(optimization_input["m2_i"] + 1j * optimization_input["m2_j"],
-                              optimization_input["m2_alpha"], optimization_input["m2_beta"])
-    particle_table = ParticleTable([particle1, particle2], [optimization_input["m1_prc"], 1-optimization_input["m1_prc"]])
+def get_particle_probabilities(*args):
+    """
+    Transform uniformly distributed random numbers to probabilities
+    """
+    exponential = -np.log(args)
+    return exponential / np.sum(exponential)
 
+
+def generate_model(optimization_input, spectrum):
+    n_particles = len(simulation_params)
+    particle_list = []
+    for ii in range(1, n_particles + 1):
+        particle = ParticleModel(optimization_input[f"m{ii}_i"] + 1j * optimization_input[f"m{ii}_j"],
+                                    optimization_input[f"m{ii}_alpha"], optimization_input[f"m{ii}_beta"])
+        particle_list.append(particle)
+    particle_prob = get_particle_probabilities(*[optimization_input[f"m{ii}_prc"] for ii in range(1, n_particles + 1)])
+    particle_table = ParticleTable(particle_list, particle_prob)
     mie = MieScatteringModel.train(spectrum, particle_table=particle_table)  # train a Mie scattering model
     return mie
 
@@ -65,7 +77,7 @@ def optimization_cost(optimization_input):
         dop_distance.append(scattering_dop(mueller_05um))
         dop.append(np.max(abs(mueller_05um[..., 0, 0, 1] / mueller_05um[..., 0, 0, 0])))
 
-    regularization_factor = 0.5
+    regularization_factor = 5
     min_dist = np.mean(dist_from_kesall)
     regularization = np.mean(dop_distance)
     total_cost = min_dist + regularization_factor * regularization
@@ -73,18 +85,13 @@ def optimization_cost(optimization_input):
 
 
 def objective(trial):
-    optimization_input = dict(
-        m1_i=trial.suggest_float("m1_i", 2.0, 3.0),  # graphite
-        m1_j=trial.suggest_float("m1_j", 1.0, 1.5),
-        m1_alpha=trial.suggest_float("m1_alpha", 10, 20000, log=True),
-        m1_beta=trial.suggest_float("m1_beta", 0.01, 10.0, log=True),
-        m1_prc=trial.suggest_float("m1_prc", 0.0, 0.5),
-
-        m2_i=trial.suggest_float("m2_i", 1.3, 2.0), # silicate
-        m2_j=trial.suggest_float("m2_j", 0.0, 0.5),
-        m2_alpha=trial.suggest_float("m2_alpha", 10, 20000, log=True),
-        m2_beta=trial.suggest_float("m2_beta", 0.01, 10.0, log=True)
-    )
+    optimization_input = dict()
+    for num, params in enumerate(simulation_params):
+        optimization_input[f"m{num+1}_i"] = trial.suggest_float(f"m{num+1}_i", params["m_i"][0], params["m_i"][1])
+        optimization_input[f"m{num+1}_j"] = trial.suggest_float(f"m{num+1}_j", params["m_j"][0], params["m_j"][1])
+        optimization_input[f"m{num+1}_alpha"] = trial.suggest_float(f"m{num+1}_alpha", 10, 20000, log=True)
+        optimization_input[f"m{num+1}_beta"] = trial.suggest_float(f"m{num+1}_beta", 0.01, 10.0, log=True)
+        optimization_input[f"m{num+1}_prc"] = trial.suggest_float(f"m{num+1}_prc", 0.0, 1.0)
     return optimization_cost(optimization_input)
 
 
