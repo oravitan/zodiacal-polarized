@@ -1,7 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import minimize
-from datetime import datetime
 import optuna
 from optuna.visualization import plot_contour, plot_optimization_history
 
@@ -61,12 +59,13 @@ def optimization_cost(x):
     dop_distance = []
     dist_from_kesall = []
     for w in C_w:
-        mueller_125um = mie.get_mueller_matrix(w, theta)  # get the scattering
-        mie_phase_func_125um = mueller_125um[..., 0, 0, 0]
-        cur_dist_from_kesall = distance_from_kelsall(theta, mie_phase_func_125um, c=C_w[w])
+        mueller_125um = mie.get_mueller_matrix(np.array((w,)), theta)  # get the scattering
+        mueller_05um = mie.get_mueller_matrix(np.array((500, )), theta)
+
+        cur_dist_from_kesall = distance_from_kelsall(theta, mueller_125um[..., 0, 0, 0], c=C_w[w])
         dist_from_kesall.append(cur_dist_from_kesall)
-        dop_distance.append(scattering_dop(mueller_125um))
-        dop.append(np.max(abs(mueller_125um[..., 0, 0, 1] / mueller_125um[..., 0, 0, 0])))
+        dop_distance.append(scattering_dop(mueller_05um))
+        dop.append(np.max(abs(mueller_05um[..., 0, 0, 1] / mueller_05um[..., 0, 0, 0])))
 
     regularization_factor = 1
     min_dist = np.mean(dist_from_kesall)
@@ -97,13 +96,13 @@ if __name__ == '__main__':
     theta = np.linspace(0, np.pi, 100)  # angle in radians
 
     # optuna.delete_study(study_name='mie_optimization', storage='sqlite:///outputs/mie_optimization.db')
-    study = optuna.create_study(study_name='mie_optimization', storage='sqlite:///outputs/mie_optimization.db',
+    study = optuna.create_study(study_name='mie_optimization', storage='sqlite:///db.sqlite3',
                                 sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.HyperbandPruner(),
                                 load_if_exists=True)
     # study.enqueue_trial({ "m1_i": 6.11175, "m1_j": 0.08278, "m2_i": 3.07128, "m2_j": 0.00182, "m2_prc": 0.20079, "particle_size_small": 0.10301,
     #         "particle_size_big": 0.75446, "particle_size_power": 1.74194})
-    # study.enqueue_trial({'m1_i': 4.27595706533983, 'm1_j': 0.2170492420819936, 'm2_i': 4.95990327842391, 'm2_j': 0.3462876172196013, 'm2_prc': 0.20948996668721834, 'particle_size_small': 0.33357907982230667, 'particle_size_big': 0.7514542362538205, 'particle_size_power': 2.0995733449355694})
-    study.optimize(objective, n_trials=1000)
+    study.enqueue_trial({'m1_i': 4.87, 'm1_j': 0.07, 'm2_i': 2.87, 'm2_j': 0.002, 'm2_prc': 0.22, 'particle_size_small': 0.11, 'particle_size_big': 0.64, 'particle_size_power': 1.78})
+    study.optimize(objective, n_trials=100)
     best_params = study.best_params
     x = [best_params['m1_i'], best_params['m1_j'], best_params['m2_i'], best_params['m2_j'], best_params['m2_prc'], \
         best_params['particle_size_small'], best_params['particle_size_big'], best_params['particle_size_power']]
