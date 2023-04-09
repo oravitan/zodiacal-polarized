@@ -34,7 +34,6 @@ def bhat_distance(theta, func1, func2):
 def scattering_dop(mueller):
     wanted_dop = -0.33 * np.sin(theta) ** 5
     dop = mueller[..., 0, 0, 1] / mueller[..., 0, 0, 0]
-    # return bhat_distance(theta, abs(wanted_dop), abs(dop))
     mse_dop = np.mean((wanted_dop - dop) ** 2)  # l2 norm
     return mse_dop
 
@@ -77,13 +76,13 @@ def objective(trial):
     optimization_input = dict(
         m1_i=trial.suggest_float("m1_i", 2.0, 3.0),  # graphite
         m1_j=trial.suggest_float("m1_j", 1.0, 1.5),
-        m1_alpha=trial.suggest_float("m1_alpha", 0.005, 200, log=True),
+        m1_alpha=trial.suggest_float("m1_alpha", 10, 20000, log=True),
         m1_beta=trial.suggest_float("m1_beta", 0.01, 10.0, log=True),
         m1_prc=trial.suggest_float("m1_prc", 0.0, 0.5),
 
         m2_i=trial.suggest_float("m2_i", 1.3, 2.0), # silicate
         m2_j=trial.suggest_float("m2_j", 0.0, 0.5),
-        m2_alpha=trial.suggest_float("m2_alpha", 0.005, 200, log=True),
+        m2_alpha=trial.suggest_float("m2_alpha", 10, 20000, log=True),
         m2_beta=trial.suggest_float("m2_beta", 0.01, 10.0, log=True)
     )
     return optimization_cost(optimization_input)
