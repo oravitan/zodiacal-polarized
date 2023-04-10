@@ -65,7 +65,10 @@ def kelsall(
         scattering = mie_scattering_model.get_mueller_matrix(wavelength, scattering_angle.squeeze())
         scattering_intensity = np.einsum('...jk,kw->...jw', scattering, unpolarized_stokes[0, ...])
         emission += albedo[None, :, None, None] * solar_flux[..., None, None] * scattering_intensity
-    emission_density = emission * get_density_function(X_helio)[..., None, None]
+    extinction_1250, _, _ = mie_scattering_model.get_extinction(1250)
+    extinction_wavelength, _, _ = mie_scattering_model.get_extinction(wavelength)
+    density = (get_density_function(X_helio) * extinction_wavelength / extinction_1250)
+    emission_density = emission * density[..., None, None]
 
     n_sca = X_los / R_los
     n_i = X_helio / R_helio
