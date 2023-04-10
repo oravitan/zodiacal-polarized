@@ -15,7 +15,7 @@ from zodipol.zodipol.zodipol import MIE_MODEL_DEFAULT_PATH
 wavelength = SPECTRUM_DIRBE[:3].to('nm').value  # in nm
 C = list(zip(*PHASE_FUNCTION_DIRBE))[:3]
 C_w = dict(zip(wavelength.round().astype(int), C))
-C_w = {1250: C_w[1250]}
+# C_w = {1250: C_w[1250]}
 
 simulation_params = [{"m_i": [2.0, 3.0], "m_j": [1.0, 1.5]}, {"m_i": [1.3, 2.0], "m_j": [0.0, 0.5]}]
 
@@ -34,8 +34,8 @@ def bhat_distance(theta, func1, func2):
 
 
 def scattering_dop(mueller):
-    wanted_dop = -0.33 * np.sin(theta) ** 5
-    dop = mueller[..., 0, 0, 1] / mueller[..., 0, 0, 0]
+    wanted_dop = 0.33 * np.sin(theta) ** 5
+    dop = -mueller[..., 0, 0, 1] / mueller[..., 0, 0, 0]
     mse_dop = np.mean((wanted_dop - dop) ** 2)  # l2 norm
     return mse_dop
 
@@ -65,22 +65,17 @@ def optimization_cost(optimization_input):
     mie = generate_model(optimization_input, spectrum)
 
     # plot the model
-    dop = []
-    dop_distance = []
     dist_from_kesall = []
     for w in C_w:
         mueller_125um = mie.get_mueller_matrix(np.array((w,)), theta)  # get the scattering
-        mueller_05um = mie.get_mueller_matrix(np.array((500, )), theta)
-
         cur_dist_from_kesall = distance_from_kelsall(theta, mueller_125um[..., 0, 0, 0], c=C_w[w])
         dist_from_kesall.append(cur_dist_from_kesall)
-        dop_distance.append(scattering_dop(mueller_05um))
-        dop.append(np.max(abs(mueller_05um[..., 0, 0, 1] / mueller_05um[..., 0, 0, 0])))
+    mueller_05um = mie.get_mueller_matrix(np.array((500,)), theta)
+    dop_distance = scattering_dop(mueller_05um)
 
     regularization_factor = 5
     min_dist = np.mean(dist_from_kesall)
-    regularization = np.mean(dop_distance)
-    total_cost = min_dist + regularization_factor * regularization
+    total_cost = min_dist + regularization_factor * dop_distance
     return total_cost
 
 
@@ -89,22 +84,23 @@ def objective(trial):
     for num, params in enumerate(simulation_params):
         optimization_input[f"m{num+1}_i"] = trial.suggest_float(f"m{num+1}_i", params["m_i"][0], params["m_i"][1])
         optimization_input[f"m{num+1}_j"] = trial.suggest_float(f"m{num+1}_j", params["m_j"][0], params["m_j"][1])
-        optimization_input[f"m{num+1}_alpha"] = trial.suggest_float(f"m{num+1}_alpha", 1, 50000, log=True)
-        optimization_input[f"m{num+1}_beta"] = trial.suggest_float(f"m{num+1}_beta", 0.1, 100.0, log=True)
+        optimization_input[f"m{num+1}_alpha"] = trial.suggest_float(f"m{num+1}_alpha", 50, 50000, log=True)
+        optimization_input[f"m{num+1}_beta"] = trial.suggest_float(f"m{num+1}_beta", 1, 10000.0, log=True)
         optimization_input[f"m{num+1}_prc"] = trial.suggest_float(f"m{num+1}_prc", 0.0, 1.0)
     return optimization_cost(optimization_input)
 
 
 if __name__ == '__main__':
-    spectrum = np.logspace(np.log10(300), np.log10(1300), 10)  # white light wavelength in nm
+    spectrum = np.logspace(np.log10(300), np.log10(3500), 10)  # white light wavelength in nm
     theta = np.linspace(0, np.pi, 100)  # angle in radians
 
     # optuna.delete_study(study_name='mie_optimization', storage='sqlite:///db.sqlite3')
     study = optuna.create_study(study_name='mie_optimization', storage='sqlite:///db.sqlite3',
                                 sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.SuccessiveHalvingPruner(),
                                 load_if_exists=True)
-    # study.enqueue_trial({'m1_i': 2.933468969453335, 'm1_j': 1.4192879753295253, 'm1_alpha': 10.090175277845265, 'm1_beta': 0.041228590969230185, 'm1_prc': 0.3849055183179672, 'm2_i': 1.5215522682550455, 'm2_j': 0.09117209242444936, 'm2_alpha': 107.37684485753378, 'm2_beta': 0.17315549514407413, 'm2_prc': 0.6773130753636463})
-    # study.enqueue_trial({'m1_i': 2.8233394402807916, 'm1_j': 1.1323808406275089, 'm1_alpha': 22.1667681989949, 'm1_beta': 0.10363789515579894, 'm1_prc': 0.046582168982913674, 'm2_i': 1.5642839776517512, 'm2_j': 0.012175604704926693, 'm2_alpha': 7705.189238712832, 'm2_beta': 0.20728129660008823, 'm2_prc': 0.9983691050809007})
+    # study.enqueue_trial({'m1_i': 2.8233394402807916, 'm1_j': 1.1323808406275089, 'm1_alpha': 213.88670780771434, 'm1_beta': 9.648980216133289, 'm1_prc': 0.046582168982913674, 'm2_i': 1.5642839776517512, 'm2_j': 0.012175604704926693, 'm2_alpha': 37172.62177097725, 'm2_beta': 4.824361948725741, 'm2_prc': 0.9983691050809007})
+    # study.enqueue_trial({'m1_alpha': 155.53595080899572,'m1_beta': 2.1569980001728637,'m1_i': 2.437277607233409,'m1_j': 1.1031768045481305,'m1_prc': 0.49969815752856506,'m2_alpha': 358.70352020085585,'m2_beta': 0.3525260363643315,'m2_i': 1.9498597145561383,'m2_j': 0.15229763860496934,'m2_prc': 0.6781824506699434})
+    # study.enqueue_trial({'m1_i': 2.7875497292739335, 'm1_j': 1.2596510696681886, 'm1_alpha':106.83701381480972, 'm1_beta': 5.306109045734519, 'm1_prc': 0.4252298090439352, 'm2_i': 1.995318559493747, 'm2_j': 0.04338205677980103, 'm2_alpha': 260.459922391564, 'm2_beta': 2.6873646093614334, 'm2_prc': 0.620480793351804})
     study.optimize(objective, n_trials=500)
     best_params = study.best_params
     x = [best_params['m1_i'], best_params['m1_j'], best_params['m2_i'], best_params['m2_j'], best_params['m2_prc'], \

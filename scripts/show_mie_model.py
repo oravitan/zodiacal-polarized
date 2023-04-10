@@ -15,9 +15,8 @@ C_w = {1250: C_w[1250]}
 
 
 if __name__ == '__main__':
-    res_dict = {'m1_i': 2.7875497292739335, 'm1_j': 1.2596510696681886, 'm1_alpha': 20.134718848398713, 'm1_beta': 0.1884620145158685, 'm1_prc': 0.4252298090439352, 'm2_i': 1.995318559493747, 'm2_j': 0.04338205677980103, 'm2_alpha': 96.9202025970916, 'm2_beta': 0.3721117694697997, 'm2_prc': 0.620480793351804}
-
-    spectrum = np.logspace(np.log10(300), np.log10(1300), 10)  # white light wavelength in nm
+    res_dict = {'m1_i': 2.8119006025243616, 'm1_j': 1.1474049990237336, 'm1_alpha': 94.72107084788712, 'm1_beta': 5.371143616847252, 'm1_prc': 0.8653740351012064, 'm2_i': 1.9730985115528372, 'm2_j': 0.08253845687928743, 'm2_alpha': 231.27541016418317, 'm2_beta': 2.689445903431446, 'm2_prc': 0.570359692197511}
+    spectrum = np.logspace(np.log10(300), np.log10(3500), 20)  # white light wavelength in nm
     theta = np.linspace(0, np.pi, 100)  # angle in radians
 
     mie = generate_model(res_dict, spectrum)
@@ -54,7 +53,7 @@ if __name__ == '__main__':
         print('Saving model...')
         wl_spectrum = np.logspace(np.log10(300), np.log10(700), 20)
         mie_wl = generate_model(res_dict, wl_spectrum)
-        mie.save(MIE_MODEL_DEFAULT_PATH)
+        mie_wl.save(MIE_MODEL_DEFAULT_PATH)
         print('Saved model to: ', MIE_MODEL_DEFAULT_PATH)
     else:
         print('Model saving skipped.')

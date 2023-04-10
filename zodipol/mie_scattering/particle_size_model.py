@@ -31,7 +31,8 @@ class ParticleModel:
         :return: particle size model
         """
         particle_size = np.logspace(np.log10(MIN_PARTICLE_SIZE), np.log10(MAX_PARTICLE_SIZE), s_res)  # particle size in um
-        gamma_dist = gamma(a=self.alpha, scale=1/self.beta).pdf(particle_size)  # gamma distribution
+        gamma_dist = gamma(a=self.alpha/self.beta, scale=self.beta).pdf(particle_size)  # gamma distribution
+        gamma_dist /= np.sum(gamma_dist)  # normalize the gamma distribution
         return particle_size, gamma_dist
 
     def get_particle_size_prc(self, size):
