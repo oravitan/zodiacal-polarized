@@ -75,17 +75,12 @@ class Zodipol:
             images.append(self.make_camera_images(*args, color=color, **kwargs))
         return np.stack(images, axis=-2)
 
-    def images_to_observation(self, images, polarizance, polarization_angle, color='red'):
-        images = self.post_process_images(images, color=color)
-        obs = Observation.from_image(images, polarizance, polarization_angle)
-        return obs
-
-    def post_process_images(self, images, color='red'):
-        imager_response = self.get_imager_response(color=color)
-        dark_current_electrons = self.imager.camera_dark_current_estimation()
-        dark_current = self.imager.number_of_electrons_to_intensity(dark_current_electrons, self.frequency, imager_response)
-        images -= dark_current.squeeze()
-        return images
+    # def post_process_images(self, images, color='red'):
+    #     imager_response = self.get_imager_response(color=color)
+    #     dark_current_electrons = self.imager.camera_dark_current_estimation()
+    #     dark_current = self.imager.number_of_electrons_to_intensity(dark_current_electrons, self.frequency, imager_response)
+    #     images -= dark_current.squeeze()
+    #     return images
 
     def make_camera_images(self, obs: Observation, polarizance=None, polarization_angle=None, add_noise=True,
                            n_realizations=1, fillna=None, noise_params: dict = None, color='red'):

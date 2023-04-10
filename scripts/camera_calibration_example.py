@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format=logging_format)
 
 
 def get_observations(n_rotations):
-    rotations_file_path = 'saved_models/self_calibration_temp.pkl'
+    rotations_file_path = 'saved_models/self_calibration_40.pkl'
     rotation_list = np.linspace(0, 360, n_rotations, endpoint=False)
     if os.path.isfile(rotations_file_path):
         # saved rotations pickle file exists
@@ -34,8 +34,8 @@ def get_observations(n_rotations):
     return obs_rot, rotation_list
 
 def get_initial_parameters(obs, parser, zodipol):
-    # delta_val, phi_val = np.pi / 4, np.pi / 6
-    delta_val, phi_val = 0, 0
+    delta_val, phi_val = np.pi / 8, np.pi / 6
+    # delta_val, phi_val = 0, 0
     delta = zodipol.imager.get_birefringence_mat(delta_val, 'center', flat=True, inv=True)
     phi = zodipol.imager.get_birefringence_mat(phi_val, 'linear', flat=True, angle=-np.pi / 4)
     mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, phi)
@@ -51,8 +51,8 @@ def get_initial_parameters(obs, parser, zodipol):
     polarizance_real = polarizance.reshape((-1, 1, 1))
 
     obs_orig = [zodipol.make_camera_images(o, polarizance_real, polarization_angle_real, n_realizations=parser["n_realizations"], add_noise=True) for o in obs_biref]
-    images_orig = zodipol.post_process_images(np.stack(obs_orig, axis=-1))
-    return images_orig, polarizance_real.reshape((-1)), polarization_angle_spatial_diff.reshape((-1)), mueller_truth
+    # images_orig = zodipol.post_process_images(np.stack(obs_orig, axis=-1))
+    return np.stack(obs_orig, axis=-1), polarizance_real.reshape((-1)), polarization_angle_spatial_diff.reshape((-1)), mueller_truth
 
 
 def cost_callback(calib: Calibration, p, eta, mueller):
@@ -73,13 +73,13 @@ if __name__ == '__main__':
                       resolution=parser["resolution"], imager_params=parser["imager_params"])
 
     n_rotations = 20
-    n_itr = 5
+    n_itr = 10
     obs, rotation_list = get_observations(n_rotations)
     calib = Calibration(obs, zodipol, parser)
 
     images_orig, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs, parser, zodipol)
     callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
-    p, eta, delta, alpha, cost, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, mode="P,eta", callback=callback_partial)
+    p, eta, delta, alpha, cost, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, mode="all", callback=callback_partial)
 
     fig, ax = plt.subplots(4, 1, sharex=True, figsize=(6, 6))
     for ax_i, c in zip(ax, [cost] + list(zip(*itr_cost))):

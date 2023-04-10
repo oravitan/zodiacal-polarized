@@ -32,7 +32,7 @@ class Calibration:
         biref_mueller = self.zodipol.imager.get_birefringence_mueller_matrix(delta, alpha)
         biref_obs = self.zodipol.imager.apply_birefringence(o, biref_mueller)
         img_model = self.zodipol.make_camera_images(biref_obs, p, eta, n_realizations=1, add_noise=False)
-        img_model = self.zodipol.post_process_images(img_model)
+        # img_model = self.zodipol.post_process_images(img_model)
         return img_model
 
     def calibrate(self, images_orig, n_itr=5, mode="all", disable=False, callback=None):
