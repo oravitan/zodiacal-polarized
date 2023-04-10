@@ -1,35 +1,27 @@
 import numpy as np
+from scipy.stats import gamma
+
 from zodipol.utils.math import normalize
 
 
 # default parameters
-DEFAULT_NUM_PARTICLES = 300  # number of particles in the particle size model
-MIN_PARTICLE_SIZE = 0.009  # particle min size in um
-MAX_PARTICLE_SIZE = 20  # particle max size in um
-BIG_PARTICLES_GAMMA = 5.4  # power law exponent for large particles
-SMALL_PARTICLES_GAMMA = 4  # power law exponent for small particles
-CUTOFF_POINT = 20  # cutoff point for power law exponent
+MIN_PARTICLE_SIZE = 50  # particle min size in nm
+MAX_PARTICLE_SIZE = 50000  # particle max size in nm
+PARTICLE_SIZE_RES = 200  # particle size resolution
 
 
-class ParticleSizeModel:
+class ParticleModel:
     """
     Particle size model
     """
-    def __init__(self, s_res=DEFAULT_NUM_PARTICLES,
-                 s_min=MIN_PARTICLE_SIZE,
-                 s_max=MAX_PARTICLE_SIZE,
-                 big_gamma=BIG_PARTICLES_GAMMA,
-                 small_gamma=SMALL_PARTICLES_GAMMA,
-                 cutoff_point=CUTOFF_POINT):
+    def __init__(self, refractive_index, alpha, beta, s_res=PARTICLE_SIZE_RES):
         """
         Initialize the particle size model
         :param s_res: particle size resolution
         """
-        self.s_min = s_min  # particle min size in um
-        self.s_max = s_max  # particle max size in um
-        self.big_gamma = big_gamma  # power law exponent for large particles
-        self.small_gamma = small_gamma  # power law exponent for small particles
-        self.cutoff_point = cutoff_point  # cutoff point for power law exponent
+        self.refractive_index = refractive_index
+        self.alpha = alpha
+        self.beta = beta
         self.particle_size, self.particle_likelihood = self._get_particle_size_model(s_res=s_res)  # particle size model (nm)
 
     def _get_particle_size_model(self, s_res=300) -> (np.ndarray, np.ndarray):
@@ -38,18 +30,51 @@ class ParticleSizeModel:
         :param s_res: particle size resolution
         :return: particle size model
         """
-        particle_size = np.logspace(np.log10(self.s_min), np.log10(self.s_max), s_res)  # particle size in um
-        normalization_factor = self.cutoff_point ** (self.big_gamma - self.small_gamma)
-        n = np.piecewise(particle_size, particle_size > self.cutoff_point,
-                         (lambda x: normalization_factor * (x ** -self.big_gamma), lambda x: x ** -self.small_gamma))
-        particle_likelihood = normalize(n * np.gradient(particle_size))  # normalized particle size distribution
-        return particle_size * 1e3, particle_likelihood
+        particle_size = np.logspace(np.log10(MIN_PARTICLE_SIZE), np.log10(MAX_PARTICLE_SIZE), s_res)  # particle size in um
+        gamma_dist = gamma(a=self.alpha, scale=1/self.beta).pdf(particle_size)  # gamma distribution
+        return particle_size, gamma_dist
+
+    def get_particle_size_prc(self, size):
+        return np.interp(size, self.particle_size, self.particle_likelihood)
+
+
+class ParticleTable:
+    def __init__(self, particle_model: list, particle_percentage: list):
+        """
+        Initialize the particle size table
+        :param particle_size: particle size in um
+        :param particle_likelihood: particle likelihood
+        """
+        self._validate_inputs(particle_model, particle_percentage)
+        self.particle_model = particle_model
+        self.particle_percentage = particle_percentage
+
+    def get_model_list(self):
+        return zip(self.particle_model, self.particle_percentage)
+
+    @staticmethod
+    def _validate_inputs(particle_model, particle_percentage):
+        assert len(particle_model) == len(particle_percentage), "The length of particle model and particle percentage should be the same"
+        assert abs(np.sum(particle_percentage)-1) < 1e-5, "The sum of particle percentage should be 1"
+        assert all([isinstance(particle, ParticleModel) for particle in particle_model]), "The particle model should be a list of ParticleModel"
+
+    def get_particle_size_prc(self, size):
+        particle_prc_list = []
+        for particle, prc in zip(self.particle_model, self.particle_percentage):
+            particle_prc = particle.get_particle_size_prc(size)
+            particle_prc_list.append(particle_prc * prc)
+        return particle_prc_list
+
+
+particle_graphite = ParticleModel(refractive_index=1.8+0.1j, alpha=1.5, beta=0.5)
+particle_silicate = ParticleModel(refractive_index=1.8+0.1j, alpha=1.5, beta=0.5)
+DEFAULT_PARTICLE_MODEL = ParticleTable(particle_model=[particle_graphite, particle_silicate],particle_percentage=[0.2, 0.8])
 
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt  # import here to avoid unnecessary import
 
-    psm = ParticleSizeModel()
+    psm = ParticleModel()
 
     fig1 = plt.figure()
     ax1 = fig1.add_subplot(1, 1, 1)

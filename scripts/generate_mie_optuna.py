@@ -6,7 +6,7 @@ from optuna.visualization import plot_contour, plot_optimization_history
 from zodipy._source_funcs import get_phase_function
 from zodipy.source_params import PHASE_FUNCTION_DIRBE, SPECTRUM_DIRBE
 
-from zodipol.mie_scattering.particle_size_model import ParticleSizeModel
+from zodipol.mie_scattering.particle_size_model import ParticleModel, ParticleTable
 from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 from zodipol.visualization.mie_plotting import plot_mueller_matrix_elems
 from zodipol.zodipol.zodipol import MIE_MODEL_DEFAULT_PATH
@@ -17,13 +17,13 @@ C = list(zip(*PHASE_FUNCTION_DIRBE))[:3]
 C_w = dict(zip(wavelength.round().astype(int), C))
 C_w = {1250: C_w[1250]}
 
+simulation_params = [{"m_i": [2.0, 3.0], "m_j": [1.0, 1.5]}, {"m_i": [1.3, 2.0], "m_j": [0.0, 0.5]}]
+
 
 def distance_from_kelsall(theta, func, c):
     kelsall_125um = get_phase_function(theta, c)
     mse_kelsall = np.mean((func - kelsall_125um) ** 2)  # l2 norm
     return mse_kelsall
-    # bhat = bhat_distance(theta, func, kelsall_125um)
-    # return bhat
 
 
 def bhat_distance(theta, func1, func2):
@@ -36,23 +36,33 @@ def bhat_distance(theta, func1, func2):
 def scattering_dop(mueller):
     wanted_dop = -0.33 * np.sin(theta) ** 5
     dop = mueller[..., 0, 0, 1] / mueller[..., 0, 0, 0]
-    # return bhat_distance(theta, abs(wanted_dop), abs(dop))
-    mse_dop = np.mean((abs(wanted_dop) - abs(dop)) ** 2)  # l2 norm
+    mse_dop = np.mean((wanted_dop - dop) ** 2)  # l2 norm
     return mse_dop
 
-def generate_model(x, spectrum):
-    s_min, s_max, big_gamma, small_gamma = x[5], x[6], 1, x[7]
-    refractive_index_dict = {x[0] + 1j * x[1]: 1-x[4], x[2] + 1j * x[3]: x[4]}
-    psm = ParticleSizeModel(s_min=s_min, s_max=s_max, big_gamma=big_gamma, small_gamma=small_gamma,
-                            s_res=200)  # create a particle size model
-    mie = MieScatteringModel.train(spectrum, particle_size=psm,
-                                   refractive_index_dict=refractive_index_dict)  # train a Mie scattering model
+
+def get_particle_probabilities(*args):
+    """
+    Transform uniformly distributed random numbers to probabilities
+    """
+    exponential = -np.log(args)
+    return exponential / np.sum(exponential)
+
+
+def generate_model(optimization_input, spectrum):
+    n_particles = len(simulation_params)
+    particle_list = []
+    for ii in range(1, n_particles + 1):
+        particle = ParticleModel(optimization_input[f"m{ii}_i"] + 1j * optimization_input[f"m{ii}_j"],
+                                    optimization_input[f"m{ii}_alpha"], optimization_input[f"m{ii}_beta"])
+        particle_list.append(particle)
+    particle_prob = get_particle_probabilities(*[optimization_input[f"m{ii}_prc"] for ii in range(1, n_particles + 1)])
+    particle_table = ParticleTable(particle_list, particle_prob)
+    mie = MieScatteringModel.train(spectrum, particle_table=particle_table)  # train a Mie scattering model
     return mie
 
 
-def optimization_cost(x):
-    # print(f"{datetime.now().strftime('%H:%M:%S.%f')}: Current parameters: {'[' + ', '.join(x.round(5).astype(str)) + ']'}")
-    mie = generate_model(x, spectrum)
+def optimization_cost(optimization_input):
+    mie = generate_model(optimization_input, spectrum)
 
     # plot the model
     dop = []
@@ -67,42 +77,35 @@ def optimization_cost(x):
         dop_distance.append(scattering_dop(mueller_05um))
         dop.append(np.max(abs(mueller_05um[..., 0, 0, 1] / mueller_05um[..., 0, 0, 0])))
 
-    regularization_factor = 1
+    regularization_factor = 5
     min_dist = np.mean(dist_from_kesall)
     regularization = np.mean(dop_distance)
     total_cost = min_dist + regularization_factor * regularization
-    # print('mean max DoP: ', np.mean(dop), '+-', np.std(dop))  # aiming for a DoP of 0.2
-    # print(f"{datetime.now().strftime('%H:%M:%S.%f')}: Cost results: (min_dist={min_dist}) + {regularization_factor}*(regularization={regularization})")
-    # print(f"{datetime.now().strftime('%H:%M:%S.%f')}: Cost results: (total_cost={total_cost})")
-    # print('--------------------')
     return total_cost
 
 
 def objective(trial):
-    m1_i = trial.suggest_float("m1_i", 1.0, 7.0)
-    m1_j = trial.suggest_float("m1_j", 0.0, 2.0)
-    m2_i = trial.suggest_float("m2_i", 1.0, 7.0)
-    m2_j = trial.suggest_float("m2_j", 0.0, 2.0)
-    m2_prc = trial.suggest_float("m2_prc", 0.0, 0.5)
-    particle_size_small = trial.suggest_float("particle_size_small", 1e-3, 0.5, log=True)
-    particle_size_big = trial.suggest_float("particle_size_big", 0.5, 10, log=True)
-    particle_size_power = trial.suggest_float("particle_size_power", 1.0, 5.0)
-    x = np.array([m1_i, m1_j, m2_i, m2_j, m2_prc, particle_size_small, particle_size_big, particle_size_power])
-    return optimization_cost(x)
+    optimization_input = dict()
+    for num, params in enumerate(simulation_params):
+        optimization_input[f"m{num+1}_i"] = trial.suggest_float(f"m{num+1}_i", params["m_i"][0], params["m_i"][1])
+        optimization_input[f"m{num+1}_j"] = trial.suggest_float(f"m{num+1}_j", params["m_j"][0], params["m_j"][1])
+        optimization_input[f"m{num+1}_alpha"] = trial.suggest_float(f"m{num+1}_alpha", 1, 50000, log=True)
+        optimization_input[f"m{num+1}_beta"] = trial.suggest_float(f"m{num+1}_beta", 0.1, 100.0, log=True)
+        optimization_input[f"m{num+1}_prc"] = trial.suggest_float(f"m{num+1}_prc", 0.0, 1.0)
+    return optimization_cost(optimization_input)
 
 
 if __name__ == '__main__':
     spectrum = np.logspace(np.log10(300), np.log10(1300), 10)  # white light wavelength in nm
     theta = np.linspace(0, np.pi, 100)  # angle in radians
 
-    # optuna.delete_study(study_name='mie_optimization', storage='sqlite:///outputs/mie_optimization.db')
+    # optuna.delete_study(study_name='mie_optimization', storage='sqlite:///db.sqlite3')
     study = optuna.create_study(study_name='mie_optimization', storage='sqlite:///db.sqlite3',
-                                sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.HyperbandPruner(),
+                                sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.SuccessiveHalvingPruner(),
                                 load_if_exists=True)
-    # study.enqueue_trial({ "m1_i": 6.11175, "m1_j": 0.08278, "m2_i": 3.07128, "m2_j": 0.00182, "m2_prc": 0.20079, "particle_size_small": 0.10301,
-    #         "particle_size_big": 0.75446, "particle_size_power": 1.74194})
-    study.enqueue_trial({'m1_i': 4.87, 'm1_j': 0.07, 'm2_i': 2.87, 'm2_j': 0.002, 'm2_prc': 0.22, 'particle_size_small': 0.11, 'particle_size_big': 0.64, 'particle_size_power': 1.78})
-    study.optimize(objective, n_trials=100)
+    # study.enqueue_trial({'m1_i': 2.933468969453335, 'm1_j': 1.4192879753295253, 'm1_alpha': 10.090175277845265, 'm1_beta': 0.041228590969230185, 'm1_prc': 0.3849055183179672, 'm2_i': 1.5215522682550455, 'm2_j': 0.09117209242444936, 'm2_alpha': 107.37684485753378, 'm2_beta': 0.17315549514407413, 'm2_prc': 0.6773130753636463})
+    # study.enqueue_trial({'m1_i': 2.8233394402807916, 'm1_j': 1.1323808406275089, 'm1_alpha': 22.1667681989949, 'm1_beta': 0.10363789515579894, 'm1_prc': 0.046582168982913674, 'm2_i': 1.5642839776517512, 'm2_j': 0.012175604704926693, 'm2_alpha': 7705.189238712832, 'm2_beta': 0.20728129660008823, 'm2_prc': 0.9983691050809007})
+    study.optimize(objective, n_trials=500)
     best_params = study.best_params
     x = [best_params['m1_i'], best_params['m1_j'], best_params['m2_i'], best_params['m2_j'], best_params['m2_prc'], \
         best_params['particle_size_small'], best_params['particle_size_big'], best_params['particle_size_power']]
