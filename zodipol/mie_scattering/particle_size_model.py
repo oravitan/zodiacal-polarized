@@ -6,7 +6,7 @@ from zodipol.utils.math import normalize
 
 # default parameters
 MIN_PARTICLE_SIZE = 50  # particle min size in nm
-MAX_PARTICLE_SIZE = 10000  # particle max size in nm
+MAX_PARTICLE_SIZE = 50000  # particle max size in nm
 PARTICLE_SIZE_RES = 200  # particle size resolution
 
 

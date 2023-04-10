@@ -89,8 +89,8 @@ def objective(trial):
     for num, params in enumerate(simulation_params):
         optimization_input[f"m{num+1}_i"] = trial.suggest_float(f"m{num+1}_i", params["m_i"][0], params["m_i"][1])
         optimization_input[f"m{num+1}_j"] = trial.suggest_float(f"m{num+1}_j", params["m_j"][0], params["m_j"][1])
-        optimization_input[f"m{num+1}_alpha"] = trial.suggest_float(f"m{num+1}_alpha", 10, 20000, log=True)
-        optimization_input[f"m{num+1}_beta"] = trial.suggest_float(f"m{num+1}_beta", 0.01, 10.0, log=True)
+        optimization_input[f"m{num+1}_alpha"] = trial.suggest_float(f"m{num+1}_alpha", 1, 50000, log=True)
+        optimization_input[f"m{num+1}_beta"] = trial.suggest_float(f"m{num+1}_beta", 0.1, 100.0, log=True)
         optimization_input[f"m{num+1}_prc"] = trial.suggest_float(f"m{num+1}_prc", 0.0, 1.0)
     return optimization_cost(optimization_input)
 
@@ -101,8 +101,10 @@ if __name__ == '__main__':
 
     # optuna.delete_study(study_name='mie_optimization', storage='sqlite:///db.sqlite3')
     study = optuna.create_study(study_name='mie_optimization', storage='sqlite:///db.sqlite3',
-                                sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.HyperbandPruner(),
+                                sampler=optuna.samplers.TPESampler(), pruner=optuna.pruners.SuccessiveHalvingPruner(),
                                 load_if_exists=True)
+    # study.enqueue_trial({'m1_i': 2.933468969453335, 'm1_j': 1.4192879753295253, 'm1_alpha': 10.090175277845265, 'm1_beta': 0.041228590969230185, 'm1_prc': 0.3849055183179672, 'm2_i': 1.5215522682550455, 'm2_j': 0.09117209242444936, 'm2_alpha': 107.37684485753378, 'm2_beta': 0.17315549514407413, 'm2_prc': 0.6773130753636463})
+    # study.enqueue_trial({'m1_i': 2.8233394402807916, 'm1_j': 1.1323808406275089, 'm1_alpha': 22.1667681989949, 'm1_beta': 0.10363789515579894, 'm1_prc': 0.046582168982913674, 'm2_i': 1.5642839776517512, 'm2_j': 0.012175604704926693, 'm2_alpha': 7705.189238712832, 'm2_beta': 0.20728129660008823, 'm2_prc': 0.9983691050809007})
     study.optimize(objective, n_trials=500)
     best_params = study.best_params
     x = [best_params['m1_i'], best_params['m1_j'], best_params['m2_i'], best_params['m2_j'], best_params['m2_prc'], \
