@@ -63,8 +63,8 @@ def plot_skymap_multicolor(skymap, title=None, saveto=None, colorbar=False, log=
     nside = hp.npix2nside(skymap.shape[0])
     pixel_arr = np.arange(hp.nside2npix(nside))
     theta, phi = hp.pix2ang(nside, pixel_arr)
-    T, P = np.meshgrid(np.linspace(0, np.pi, 1000), np.linspace(0, 2 * np.pi, 1000))
-    interp = griddata((theta, phi), skymap, (T, P), method='linear')
+    T, P = np.meshgrid(np.linspace(0, np.pi, 1000), np.linspace(-np.pi, np.pi, 1000))
+    interp = griddata((theta, phi), skymap, (np.mod(T, np.pi), np.mod(P, 2*np.pi)), method='nearest')
 
     vmin = (np.nanmin(interp) if vmin is None else vmin)
     vmax = (np.nanmax(interp) if vmax is None else vmax)
@@ -72,13 +72,13 @@ def plot_skymap_multicolor(skymap, title=None, saveto=None, colorbar=False, log=
     interp_norm = np.nan_to_num(interp_norm, nan=0.5)
     interp_norm = np.clip(interp_norm, 0, 1)
 
-    plt.figure(figsize=(6, 4))
+    plt.figure(figsize=(10, 6))
     plt.subplot(projection='mollweide')
     plt.xticks([])
     plt.yticks([])
     if title is not None:
-        plt.title(title,fontsize=18)
-    plt.pcolormesh(P - np.pi, T - np.pi / 2, interp_norm, rasterized=True, **kwargs)
+        plt.title(title, fontsize=18)
+    plt.pcolormesh(-P, np.pi/2 - T, interp_norm, rasterized=True, **kwargs)
     if colorbar:
         cbar = plt.colorbar(orientation='horizontal', pad=0.1, ticks=np.linspace(0, 1, 6))
         cbar.set_label("$MJy/sr$ (log-scale)", fontsize=18)

@@ -91,7 +91,7 @@ class PlanetaryLight:
 
         angle_function = self._lambert_angular_function(planet_scattering_angle)
         gamma = 2 * planet_bond_albedo / (3 * np.pi) * planet_radius ** 2 * solar_flux
-        lambertian_scattering = gamma * angle_function / (4 * np.pi * camera_distance**2)
+        lambertian_scattering = gamma * angle_function / (camera_distance**2)
         return lambertian_scattering.to(u.Unit('W / m^2 Hz sr'))
 
     @staticmethod
