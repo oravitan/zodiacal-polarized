@@ -7,7 +7,7 @@ import transformations as transf
 from astropy.time import Time
 from astropy.constants import c
 
-from zodipol.utils.math import ang2vec, vec2ang
+from zodipol.utils.math import ang2vec, vec2ang, get_c2w, get_w2c
 from zodipol.zodipol.observation import Observation
 from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 from zodipol.zodipy_local.zodipy.zodipy import Zodipy, IQU_to_image
@@ -43,7 +43,7 @@ class Zodipol:
     def create_observation(self, theta: u.Quantity, phi: u.Quantity, roll: u.Quantity = 0 * u.deg,
                            obs_time: Time | str = Time("2022-06-14"), lonlat: bool = False, new_isl=False):
         obs_time = (Time(obs_time) if not isinstance(obs_time, Time) else obs_time)  # Observation time
-        theta_vec, phi_vec = self._create_sky_coords(theta=theta, phi=phi, roll=roll, resolution=self.imager.resolution)
+        theta_vec, phi_vec = self.create_sky_coords(theta=theta, phi=phi, roll=roll, resolution=self.imager.resolution)
         binned_emission = self.zodipy.get_emission_ang(self.frequency, theta_vec, phi_vec,
                                                               obs_time=obs_time, mie_scattering_model=self.mie_model,
                                                               weights=self.frequency_weight, lonlat=lonlat,
@@ -75,12 +75,12 @@ class Zodipol:
             images.append(self.make_camera_images(*args, color=color, **kwargs))
         return np.stack(images, axis=-2)
 
-    # def post_process_images(self, images, color='red'):
-    #     imager_response = self.get_imager_response(color=color)
-    #     dark_current_electrons = self.imager.camera_dark_current_estimation()
-    #     dark_current = self.imager.number_of_electrons_to_intensity(dark_current_electrons, self.frequency, imager_response)
-    #     images -= dark_current.squeeze()
-    #     return images
+    def post_process_images(self, images, sign=-1, color='red'):
+        imager_response = self.get_imager_response(color=color)
+        dark_current_electrons = self.imager.camera_dark_current_estimation()
+        dark_current = self.imager.number_of_electrons_to_intensity(dark_current_electrons, self.frequency, imager_response)
+        images += sign*dark_current.squeeze().value
+        return images
 
     def make_camera_images(self, obs: Observation, polarizance=None, polarization_angle=None, add_noise=True,
                            n_realizations=1, fillna=None, noise_params: dict = None, color='red'):
@@ -115,24 +115,16 @@ class Zodipol:
         camera_intensity_mean = np.stack(realization_list, axis=-1).mean(axis=-1)  # Mean of the realizations
         return camera_intensity_mean
 
-    def _create_sky_coords(self, theta: u.Quantity, phi: u.Quantity, roll: u.Quantity = 0*u.deg, resolution=(2448, 2048)):
-        xaxis = [1, 0, 0]
+    def create_sky_coords(self, theta: u.Quantity, phi: u.Quantity, roll: u.Quantity = 0 * u.deg, resolution=(2448, 2048)):
         theta_vec = np.linspace(- self.fov / 2, self.fov / 2, resolution[1]) + 90*u.deg
         phi_vec = np.linspace(- self.fov / 2, self.fov / 2, resolution[0])
         theta_mat, phi_mat = np.meshgrid(theta_vec, phi_vec)
 
-        rot_c_vec = ang2vec(theta.to('rad').value, phi.to('rad').value)
-        if theta == 90*u.deg and phi == 0*u.deg:
-            rot_mat = np.identity(4)
-        else:
-            rot_mat = transf.rotation_matrix(transf.angle_between_vectors(xaxis, rot_c_vec), transf.vector_product(xaxis, rot_c_vec))
-        roll_mat = transf.rotation_matrix(roll.to('rad').value, rot_c_vec)
-        trans_mat = transf.concatenate_matrices(roll_mat, rot_mat)
+        trans_mat = get_c2w(theta.to('rad').value, phi.to('rad').value, roll.to('rad').value)
 
         rot_vec = ang2vec(theta_mat.to('rad').value, phi_mat.to('rad').value)
-        mul = np.einsum('ij,...j->...i', trans_mat[:3, :3], rot_vec)
+        mul = np.einsum('ij,...j->...i', trans_mat, rot_vec)
         theta_v, phi_v = vec2ang(mul) * u.rad
-
         return theta_v.flatten(), phi_v.flatten()
 
     def _set_mie_model(self, mie_model_path=MIE_MODEL_DEFAULT_PATH):

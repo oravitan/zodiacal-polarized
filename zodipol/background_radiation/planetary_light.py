@@ -54,10 +54,8 @@ class PlanetaryLight:
         sky_map = np.zeros((hp.nside2npix(nside), len(wavelength),)) * u.Unit('W / m^2 Hz sr')
         for planet in self._get_planet_names():
             planet_location = self._get_planet_location(planet, time)
-            planet_location = planet_location.represent_as(SphericalRepresentation)
-            lon = planet_location.lon.value
-            lat = planet_location.lat.value + np.pi/2
-            pixel = hp.ang2pix(nside, lat, lon)
+            planet_location = planet_location.represent_as(CartesianRepresentation)
+            pixel = hp.vec2pix(nside, *list(planet_location.xyz.value))
             sky_map[pixel, :] += planet_flux[planet]
         return sky_map
 
@@ -102,24 +100,24 @@ class PlanetaryLight:
         time = self._validate_time(time)
         if planet_name not in self._get_planet_names():
             raise ValueError(f'planet name {planet_name} is not a valid planet name')
-        return get_body(body=planet_name, time=time)
+        return get_body(body=planet_name, time=time).transform_to('geocentricmeanecliptic')
 
     def _get_planet_distance_from_sun(self, planet_name: str, time: str | Time):
         time = self._validate_time(time)
         planet = self._get_planet_location(planet_name, time)
-        sun = get_body('sun', time)
+        sun = get_body('sun', time).transform_to('geocentricmeanecliptic')
         return sun.separation_3d(planet)
 
     def _get_planet_distance_from_earth(self, planet_name: str, time: str | Time):
         time = self._validate_time(time)
         planet = self._get_planet_location(planet_name, time)
-        earth = get_body('earth', time)
+        earth = get_body('earth', time).transform_to('geocentricmeanecliptic')
         return earth.separation_3d(planet)
 
     def _get_planet_scattering_angle(self, planet_name: str, time: str | Time):
         time = self._validate_time(time)
         planet = self._get_planet_location(planet_name, time)
-        sun = get_body('sun', time)
+        sun = get_body('sun', time).transform_to('geocentricmeanecliptic')
         planet_cart, sun_cart = planet.represent_as(CartesianRepresentation), sun.represent_as(CartesianRepresentation)
         planet_to_sun, planet_to_earth = (sun_cart-planet_cart).xyz, (-planet_cart).xyz
         vec_multi = (planet_to_sun @ planet_to_earth) / np.linalg.norm(planet_to_sun) / np.linalg.norm(planet_to_earth)
@@ -138,7 +136,7 @@ class PlanetaryLight:
 
 if __name__ == '__main__':
     pl = PlanetaryLight()
-    sky_map = pl.make_planets_map(32, '2022-01-01', [0.3, 0.4, 0.5, 0.6, 0.7] * u.um)
+    sky_map = pl.make_planets_map(32, "2022-06-14", [0.3, 0.4, 0.5, 0.6, 0.7] * u.um)
 
     import matplotlib.pyplot as plt
     hp.mollview(sky_map[:, 0])

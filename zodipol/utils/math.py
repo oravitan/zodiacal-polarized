@@ -1,4 +1,8 @@
 import numpy as np
+import transformations as transf
+
+xaxis, yaxis, zaxis = [1, 0, 0], [0, 1, 0], [0, 0, 1]
+
 
 def normalize(x):
     """
@@ -35,3 +39,19 @@ def vec2ang(arr):
     theta = np.arccos(z)
     phi = np.arctan2(y, x)
     return theta, phi
+
+
+def get_c2w(theta, phi, roll):
+    rot_c_vec = ang2vec(theta, phi)
+    if theta == np.pi/2 and phi == 0.0:
+        rot_mat = np.identity(4)
+    else:
+        rot_mat = transf.rotation_matrix(transf.angle_between_vectors(xaxis, rot_c_vec),
+                                         transf.vector_product(xaxis, rot_c_vec))
+    roll_mat = transf.rotation_matrix(roll, rot_c_vec)
+    trans_mat = transf.concatenate_matrices(roll_mat, rot_mat)
+    return trans_mat[:3, :3]
+
+
+def get_w2c(theta, phi, roll):
+    return np.linalg.inv(get_c2w(theta, phi, roll))

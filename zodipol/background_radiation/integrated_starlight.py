@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import healpy as hp
 from astroquery.vizier import Vizier
+from astropy.time import Time
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from tqdm import tqdm
@@ -54,7 +55,7 @@ def get_temp(ii, flux, freq, x0):
 
 
 class IntegratedStarlight:
-    def __init__(self, isl_map, frequency, catalog=None):
+    def __init__(self, isl_map, frequency, catalog=None, obs_time: Time = None):
         """
         Integrated starlight model
         :param isl_map: integrated starlight flux data
@@ -64,6 +65,7 @@ class IntegratedStarlight:
         self.catalog = catalog
         self.isl_map = self._preprocess_map(isl_map)
         self.frequency = frequency
+        self.obs_time = obs_time
 
     def save(self, path):
         """
@@ -141,7 +143,7 @@ class IntegratedStarlightFactory:
     """
     Integrated starlight model
     """
-    def __init__(self, isl_flux=BACKGROUND_ISL_FLUX, catalog="II/246/out", nside=256,
+    def __init__(self, obs_time, isl_flux=BACKGROUND_ISL_FLUX, catalog="II/246/out", nside=256,
                  focal_ratio=_2mass_focal_ratio):
         """
         Initialize the integrated starlight model
@@ -158,6 +160,7 @@ class IntegratedStarlightFactory:
         self.pixels = np.arange(hp.nside2npix(nside))
         self.pixel_size = hp.nside2pixarea(nside, degrees=True) ** 0.5
         self.focal_param = np.pi*(1/(2*focal_ratio))**2 * u.sr
+        self.obs_time = Time(obs_time)
 
     def _reset_visier(self, columns ="**"):
         """
@@ -184,7 +187,7 @@ class IntegratedStarlightFactory:
         :return: query result
         """
         width = width if width is not None else self.pixel_size * u.deg  # if not specified, use pixel size
-        sky_coord = SkyCoord(lon, lat, unit=(u.deg, u.deg), frame='galactic')
+        sky_coord = SkyCoord(lon, lat, unit=(u.deg, u.deg), frame='geocentricmeanecliptic', obstime=self.obs_time)
         try:
             result = self.visier.query_region(sky_coord, width=width)
         except:
@@ -314,7 +317,7 @@ if __name__ == '__main__':
     wavelength = [300, 400, 500, 600, 700] * u.nm
     frequency = wavelength.to(u.Hz, equivalencies=u.spectral())
 
-    isf = IntegratedStarlightFactory(nside=32)
+    isf = IntegratedStarlightFactory(obs_time="2022-06-14", nside=256)
     skymap_flux = isf.build_skymap(frequency.value, parallel=True)
     skymap_flux.save("saved_models/skymap_flux.npz")
 
