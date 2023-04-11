@@ -2,7 +2,7 @@ import logging
 
 from zodipol.utils.argparser import ArgParser
 from zodipol.zodipol import Zodipol, Observation
-from zodipol.visualization.skymap_plots import plot_satellite_image, plot_satellite_image_indices
+from zodipol.visualization.skymap_plots import plot_satellite_image, plot_satellite_image_indices, plot_skymap
 
 logging_format = '%(asctime)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=logging_format)
@@ -14,13 +14,14 @@ if __name__ == '__main__':
     parser = ArgParser()
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"], n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"], n_freq=parser["n_freq"],
                       planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"])
-    obs_full = zodipol.create_full_sky_observation(nside=64, obs_time=parser["obs_time"])
+    obs_full = zodipol.create_full_sky_observation(nside=128, obs_time=parser["obs_time"])
     camera_intensity_full_color = zodipol.make_camera_images_multicolor(obs_full,
                                                                         n_realizations=parser["n_realizations"],
                                                                         add_noise=False)
     obs_camera_intensity_full_color = Observation.from_image(camera_intensity_full_color, parser["polarizance"],
                                                              parser["polarization_angle"][None, None, :])
     camera_dolp_color = obs_camera_intensity_full_color.get_dolp()
+    plot_skymap(camera_intensity_full_color[..., 0, 0])
 
     obs = zodipol.create_observation(theta=parser["direction"][0], phi=parser["direction"][1], lonlat=False, new_isl=parser["new_isl"])
     obs = obs.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"])

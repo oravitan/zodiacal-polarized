@@ -54,21 +54,29 @@ def kelsall(
 
     temperature = get_dust_grain_temperature(R_helio, T_0, delta)
     blackbody_emission = np.interp(temperature, *bp_interpolation_table)
-    emission = (1 - albedo[None, :]) * (emissivity[None, :] * blackbody_emission)
+    emission = (emissivity[None, :] * blackbody_emission)
 
     unpolarized_stokes = get_unpolarized_stokes_vector()
     emission = np.einsum('...j,jkw->...kw', emission[..., None], unpolarized_stokes)
 
+    # kelsall_wavelength = 1250  # nm
+    # extinction_sca = ((kelsall_wavelength / wavelength) ** 4) * get_density_function(X_helio) * albedo[None,:]
+    # extinction_abs = (kelsall_wavelength / wavelength) * get_density_function(X_helio) * (1-albedo[None, :])
+    extinction_sca = get_density_function(X_helio) * albedo[None,:]
+    extinction_abs = get_density_function(X_helio) * (1-albedo[None, :])
+    emission = emission * extinction_abs[..., None, None]
+
     if any(albedo != 0):
         solar_flux = solar_irradiance / R_helio**2
         scattering_angle = get_scattering_angle(R_los, R_helio, X_los, X_helio)
-        scattering = mie_scattering_model.get_mueller_matrix(wavelength, scattering_angle.squeeze())
-        scattering_intensity = np.einsum('...jk,kw->...jw', scattering, unpolarized_stokes[0, ...])
-        emission += albedo[None, :, None, None] * solar_flux[..., None, None] * scattering_intensity
-    extinction_1250, _, _ = mie_scattering_model.get_extinction(1250)
-    extinction_wavelength, _, _ = mie_scattering_model.get_extinction(wavelength)
-    density = (get_density_function(X_helio) * extinction_wavelength / extinction_1250)
-    emission_density = emission * density[..., None, None]
+        phase_function = np.stack(list(map(get_phase_function, repeat(scattering_angle.squeeze()), list(zip(*phase_coefficients)))), axis=-1)
+        phase_function = np.clip(phase_function, 0, None)
+
+        scattering_intensity = np.stack([phase_function, np.zeros_like(phase_function), np.zeros_like(phase_function), np.zeros_like(phase_function)], axis=-1)
+        emission += extinction_sca[..., None, None] * solar_flux[..., None, None] * scattering_intensity[..., None]
+
+        scattering_dop = -0.33 * np.sin(scattering_angle.squeeze()) ** 5
+        emission[..., 1, :] = emission[..., 0, :] * scattering_dop[..., None, None]  # resulting DOP in the visible domain
 
     n_sca = X_los / R_los
     n_i = X_helio / R_helio
@@ -78,7 +86,7 @@ def kelsall(
     x, y, z = B[0, :, 0], B[1, :, 0], B[2, :, 0]
     theta_scat = np.arctan2((x ** 2 + y ** 2) ** 0.5, z)
     camera_rotation_mueller = get_rotation_mueller_matrix(theta_scat)
-    emission_rotated = np.einsum('ijk,imkl->imj', camera_rotation_mueller, emission_density)
+    emission_rotated = np.einsum('ijk,imkl->imj', camera_rotation_mueller, emission)
     return emission_rotated
 
 
