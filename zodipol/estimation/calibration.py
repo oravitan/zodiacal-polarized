@@ -13,7 +13,7 @@ class Calibration:
         self.initialize()
 
     def initialize(self):
-        self.p = np.ones(self.parser["resolution"]).reshape((-1))
+        self.p = np.ones(self.parser["resolution"]).reshape((-1, 1, 1))
         self.eta = np.zeros(self.parser["resolution"]).reshape((-1))
         self.delta = self.zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)
         self.alpha = self.zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)

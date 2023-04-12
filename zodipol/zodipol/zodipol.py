@@ -79,7 +79,7 @@ class Zodipol:
         imager_response = self.get_imager_response(color=color)
         dark_current_electrons = self.imager.camera_dark_current_estimation()
         dark_current = self.imager.number_of_electrons_to_intensity(dark_current_electrons, self.frequency, imager_response)
-        images += sign*dark_current.squeeze().value
+        images += sign*dark_current.squeeze()
         return images
 
     def make_camera_images(self, obs: Observation, polarizance=None, polarization_angle=None, add_noise=True,

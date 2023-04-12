@@ -34,6 +34,10 @@ def get_observations(n_rotations):
     return obs_rot, rotation_list
 
 def get_initial_parameters(obs, parser, zodipol):
+    motion_blur = 360 / n_rotations / zodipol.imager.exposure_time.value * u.deg
+    obs = [o.add_radial_blur(motion_blur, list(parser["resolution"])) for o in obs]
+    obs = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"]) for o in obs]
+
     delta_val, phi_val = np.pi / 8, np.pi / 6
     # delta_val, phi_val = 0, 0
     delta = zodipol.imager.get_birefringence_mat(delta_val, 'center', flat=True, inv=True)
@@ -49,10 +53,11 @@ def get_initial_parameters(obs, parser, zodipol):
     polarizance, _ = np.meshgrid(np.linspace(0.8, 0.9, parser["resolution"][0]), np.arange(parser["resolution"][1]),
                        indexing='ij')
     polarizance_real = polarizance.reshape((-1, 1, 1))
+    # polarizance_real = polarizance_real.repeat(4, axis=-1)
 
     obs_orig = [zodipol.make_camera_images(o, polarizance_real, polarization_angle_real, n_realizations=parser["n_realizations"], add_noise=True) for o in obs_biref]
     # images_orig = zodipol.post_process_images(np.stack(obs_orig, axis=-1))
-    return np.stack(obs_orig, axis=-1), polarizance_real.reshape((-1)), polarization_angle_spatial_diff.reshape((-1)), mueller_truth
+    return np.stack(obs_orig, axis=-1), polarizance_real, polarization_angle_spatial_diff.reshape((-1)), mueller_truth
 
 
 def cost_callback(calib: Calibration, p, eta, mueller):
@@ -97,7 +102,7 @@ if __name__ == '__main__':
     plt.show()
 
     # plot comparison of P,eta estimated vs true
-    fig, ax = plt.subplots(2, 2, figsize=(4, 6), subplot_kw={'xticks': [], 'yticks': []})
+    fig, ax = plt.subplots(2, 2, figsize=(5, 5), subplot_kw={'xticks': [], 'yticks': []})
     c1 = ax[0, 0].imshow(polarizance_real.reshape((parser["resolution"][0], parser["resolution"][1])), cmap='gray', vmin=0.8, vmax=0.9)
     ax[0, 0].set_title("$P^{true}$")
     plt.colorbar(c1, ax=ax[0, 0])

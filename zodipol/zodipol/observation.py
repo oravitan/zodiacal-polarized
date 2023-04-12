@@ -51,8 +51,8 @@ class Observation:
 
     def change_roll(self, new_roll):
         rot_mat = get_rotation_mueller_matrix(np.array([new_roll - self.roll]))
-        rotated_elem = np.einsum('...ij,...j->...i', rot_mat, self.to_numpy(ndims=4))
-        I, Q, U, _ = rotated_elem[..., 0], rotated_elem[..., 1], rotated_elem[..., 2], rotated_elem[..., 3]
+        rotated_elem = np.einsum('...ij,...j->...i', rot_mat[0, :3, :3], self.to_numpy(ndims=3))
+        I, Q, U = rotated_elem[..., 0], rotated_elem[..., 1], rotated_elem[..., 2]
         return Observation(I, Q, U, theta=self.theta, phi=self.phi, roll=new_roll)
 
     def get_binned_emission(self, polarization_angle: np.ndarray, polarizance: float):
