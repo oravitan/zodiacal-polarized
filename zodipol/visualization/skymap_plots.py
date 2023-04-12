@@ -18,7 +18,7 @@ def plot_satellite_image(image, title=None, resolution=None, saveto=None, **kwar
     cbar.set_label(f"{unit}", fontsize=16)
     plt.axis('off')
     if saveto is not None:
-        plt.savefig(saveto)
+        plt.savefig(saveto, bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
 
 
@@ -50,7 +50,7 @@ def plot_skymap(skymap, title=None, saveto=None, **kwargs):
     plt.title(title, fontsize=18)
     plt.rcParams.update({'font.size': 16})
     if saveto is not None:
-        plt.savefig(saveto)
+        plt.savefig(saveto, bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
 
 
@@ -86,5 +86,5 @@ def plot_skymap_multicolor(skymap, title=None, saveto=None, colorbar=False, log=
         cbar.ax.xaxis.set_tick_params(labelsize=16)
     plt.tight_layout()
     if saveto is not None:
-        plt.savefig(saveto, format='pdf')
+        plt.savefig(saveto, format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
