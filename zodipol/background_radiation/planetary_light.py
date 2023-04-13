@@ -10,6 +10,7 @@ from astropy.coordinates import get_body
 
 sun_temperature = 5778 * u.K
 sun_radius = 696340 * u.km
+PLANET_NAMES = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']
 
 
 class PlanetaryLight:
@@ -94,7 +95,7 @@ class PlanetaryLight:
 
     @staticmethod
     def _get_planet_names():
-        return ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']
+        return PLANET_NAMES
 
     def _get_planet_location(self, planet_name: str, time: str | Time):
         time = self._validate_time(time)
