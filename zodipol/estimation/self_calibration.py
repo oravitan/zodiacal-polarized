@@ -2,8 +2,7 @@ import numpy as np
 import astropy.units as u
 
 from scipy.interpolate import RegularGridInterpolator
-from scipy.optimize import least_squares
-from scipy.sparse import eye
+from scipy.signal import convolve2d
 from tqdm import tqdm
 
 from zodipol.zodipol import Observation
@@ -23,43 +22,48 @@ class SelfCalibration:
         self.theta = theta
         self.phi = phi
         self.nobs = len(self.rotation_list)
-        self.aligned_images = self.align_images(images_res_flat.value, rotation_list, fill_value=np.nan)
+        self.aligned_images = self.align_images(images_res_flat.value, rotation_list, fill_value=0)
+        self.nan_mask = self.get_nan_mask()
         self.initialize()
 
     def initialize(self, init = None):
         self.p = np.ones(self.parser["resolution"]).reshape((-1))
         self.eta = np.zeros(self.parser["resolution"]).reshape((-1))
-        self.delta = self.zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)
-        self.alpha = self.zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)
+        delta = self.zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)
+        alpha = self.zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)
         if init is not None and 'p' in init:
             self.p = init['p']
         if init is not None and 'eta' in init:
             self.eta = init['eta']
         if init is not None and 'delta' in init:
-            self.delta = init['delta']
+            delta = init['delta']
         if init is not None and 'alpha' in init:
-            self.alpha = init['alpha']
+            alpha = init['alpha']
+        self.biref = self.zodipol.imager.get_birefringence_mueller_matrix(delta, alpha)[..., :3, :3]
+
+    def get_nan_mask(self):
+        nan_imag = self.align_images(np.ones((self.images.shape[0], len(self.rotation_list))), self.rotation_list, fill_value=np.nan)
+        nan_ind = np.isnan(nan_imag).any(axis=-1).squeeze()
+        return nan_ind
 
     def get_properties(self):
-        nan_ind = np.isnan(self.aligned_images).any(axis=-2).any(axis=-1, keepdims=True).squeeze()
-        p_nan = np.where(nan_ind, np.nan, self.p)
-        eta_nan = np.where(nan_ind, np.nan, self.eta)
-        delta_nan, alpha_nan = np.where(nan_ind, np.nan, self.delta), np.where(nan_ind, np.nan, self.alpha)
-        return p_nan, eta_nan, delta_nan, alpha_nan
+        p_nan = np.where(self.nan_mask, np.nan, self.p)
+        eta_nan = np.where(self.nan_mask, np.nan, self.eta)
+        biref = self.biref.copy()
+        biref[self.nan_mask, ...] = np.nan
+        return p_nan, eta_nan, biref
 
-    def forward_model(self, obs=None, p=None, eta=None, delta=None, alpha=None):
+    def forward_model(self, obs=None, p=None, eta=None, biref=None):
         obs = (obs if obs is not None else self.obs)
         p = (p if p is not None else self.p)
         eta = (eta if eta is not None else self.eta)
-        delta = (delta if delta is not None else self.delta)
-        alpha = (alpha if alpha is not None else self.alpha)
+        biref = (biref if biref is not None else self.biref)
 
         forward_results = []
         for ii in range(len(obs)):
             cur_p = p[:, None]
             cur_eta = eta[:, None] + self.parser["polarization_angle"]
-            biref_mueller = self.zodipol.imager.get_birefringence_mueller_matrix(delta, alpha)
-            biref_obs = self.zodipol.imager.apply_birefringence(obs[ii], biref_mueller)
+            biref_obs = self.zodipol.imager.apply_birefringence(obs[ii], biref)
 
             I, Q, U = biref_obs.I, biref_obs.Q, biref_obs.U
             img_model = IQU_to_image(I, Q, U, cur_p, cur_eta)
@@ -87,46 +91,8 @@ class SelfCalibration:
 
     def _calibrate_itr(self, mode="all"):
         self.obs = self.estimate_observations()
-        if mode == "all" or 'P' in mode:
-            self.p = self._calibrate_property("p")
-        if mode == "all" or 'eta' in mode:
-            self.eta = self._calibrate_property("eta")
-        if mode == "all" or 'delta' in mode:
-            self.delta = self._calibrate_property("delta")
-        if mode == "all" or 'alpha' in mode:
-            self.alpha = self._calibrate_property("alpha")
-        if mode != "all" and not any([x in mode for x in ['P', 'eta', 'delta', 'alpha']]):
-            raise ValueError(f"Self-calibration mode {mode} not recognized")
-
-    def _calibrate_property(self, property_name):
-        def cost_function(x):
-            x = x.reshape(getattr(self, property_name).shape)
-            img = self.forward_model(**{property_name: x})
-            diff_resh = img - self.images.value
-            cost = 1e20 * (diff_resh ** 2).sum(axis=(-1, -2)) ** 0.5
-            cost = np.nan_to_num(cost, nan=0)  # zero out nans
-            return cost
-
-        propsize = getattr(self, property_name).size
-        jac_sparsity = eye(propsize)
-        x0 = getattr(self, property_name).flatten()
-        bounds = self.get_property_bounds(property_name)
-        p_lsq = least_squares(cost_function, x0=x0.flatten(), jac_sparsity=jac_sparsity, ftol=1e-6, max_nfev=30,
-                              bounds=bounds, verbose=2)
-        return p_lsq.x.reshape(getattr(self, property_name).shape)
-
-    @staticmethod
-    def get_property_bounds(property_name):
-        if property_name == "p":
-            return 0.5, 1
-        elif property_name == "eta":
-            return -np.pi/4, np.pi/4
-        elif property_name == "delta":
-            return 0, np.pi/2
-        elif property_name == "alpha":
-            return -np.pi, np.pi
-        else:
-            raise ValueError("Unknown property name")
+        self.estimate_p_eta()
+        self.estimate_delta_eta()
 
     def estimate_observations(self):
         rotation_list = self.rotation_list
@@ -135,16 +101,15 @@ class SelfCalibration:
         # est_shape = (interp_images_res.shape[0], np.prod(interp_images_res.shape[1:]))
         p = self.align_images(self.p[:, None].repeat(self.nobs, axis=-1), rotation_list, invert=True)[..., None, :].repeat(self.parser["n_polarization_ang"], axis=-2)
         eta = self.align_images(self.eta[:, None, None].repeat(self.nobs, axis=-1), rotation_list, invert=True) + self.parser["polarization_angle"][:, None]
-        mueller = self.zodipol.imager.get_birefringence_mueller_matrix(self.delta, self.alpha)
+        mueller = self.biref
         mueller_rot = mueller[..., None].repeat(self.nobs, axis=-1)
-        rotation_mat = get_rotation_mueller_matrix(-np.deg2rad(rotation_list))[None, ...].repeat(self.images.shape[0], axis=0)
+        rotation_mat = get_rotation_mueller_matrix(np.deg2rad(rotation_list))[None, ...].repeat(self.images.shape[0], axis=0)
         I_est, Q_est, U_est = self.estimate_IQU(interp_images_res, rotation_mat, p, eta, mueller_rot)
         obs_est = Observation(I_est, Q_est, U_est, theta=self.theta, phi=self.phi, roll=0)
         obs_est_rot = [self.realign_observation(obs_est, roll) for roll in rotation_list]
         return obs_est_rot
 
-    @staticmethod
-    def estimate_IQU(intensity, rotation_mat, polarizance, angles, mueller):
+    def estimate_IQU(self, intensity, rotation_mat, polarizance, angles, mueller):
         """
         Calculate the Stokes parameters of the signal.
         :param intensity: The intensity of the signal.
@@ -152,26 +117,81 @@ class SelfCalibration:
         :return: The Stokes parameters of the signal.
         """
         # create the angles matrix
-        n_pixels = intensity.shape[0]
         angles_matrix = 0.5 * np.stack((np.ones_like(angles), polarizance*np.cos(2*angles), polarizance*np.sin(2*angles)), axis=-3)
-        forward_mat = np.einsum('...jiw,...jkw,...wks->...siw', angles_matrix, mueller[:, :3, :3, :], rotation_mat[..., :3, :3])
-        forward_mat_s, intensity_s = forward_mat.reshape((n_pixels, 3, -1)), intensity.reshape((n_pixels, -1))
-        # forward_mat_s, intensity_s = np.nan_to_num(forward_mat_s, nan=0), np.nan_to_num(intensity_s, nan=0)
+        forward_mat = np.einsum('...ijk,...iwk,...kws->...sjk', angles_matrix, mueller[:, :3, :3, :], rotation_mat[..., :3, :3])
+        angles_matrix[self.nan_mask, ...] = forward_mat[self.nan_mask, ...] = np.nan
 
-        pseudo_inverse = np.einsum('...ij,...kj->...ik', forward_mat_s, forward_mat_s)
-        intensity_mult = np.einsum('...ij,...j->...i', forward_mat_s, intensity_s)
+        pseudo_inverse = np.einsum('...ijk,...wjk->...iw', forward_mat, forward_mat)
+        intensity_mult = np.einsum('...ijk,...jk->...i', forward_mat, intensity)
         intensity_inv = np.linalg.solve(pseudo_inverse, intensity_mult)
         I, Q, U = intensity_inv[..., 0], intensity_inv[..., 1], intensity_inv[..., 2]
         return I, Q, U
 
-    def align_images(self, images_res, rotation_arr, invert=False, fill_value=0):
+    def estimate_p_eta(self):
+        # preparation
+        angles = self.eta[:, None] + self.parser["polarization_angle"]
+        intensity = self.images.value
+        mueller = self.biref
+        stokes = np.stack([o.to_numpy(ndims=3) for o in self.obs], axis=-1)
+
+        M_eta = 0.5 * np.stack((np.ones_like(angles), np.cos(2 * angles), np.sin(2 * angles)), axis=-1)
+        intensity[self.nan_mask, ...] = mueller[self.nan_mask, ...] = stokes[self.nan_mask, ...] = M_eta[self.nan_mask, ...] = np.nan
+
+        A = np.einsum('...ai, ...ij,...jk->...iak', M_eta, mueller, stokes)
+
+        # calculate the pseudo inverse
+        A_A_T = np.einsum('...iak,...jak->...ij', A, A)
+        A_I_T = np.einsum('...ijk,...jk->...i', A, intensity)
+
+        M_p_eta_inv = np.linalg.solve(A_A_T, A_I_T)
+        p = M_p_eta_inv[:, 1:].mean(axis=1)
+        self.p = p - np.nanmean(p)  # p is solved up to a global shift - set max to 1
+
+    def estimate_delta_eta(self, kernel_size = 5):
+        intensity = self.images.value
+        p = self.p[:, None]
+        angles = self.eta[:, None] + self.parser["polarization_angle"]
+
+        # preparation
+        stokes = np.stack([o.to_numpy(ndims=3) for o in self.obs], axis=-1)
+        angles_matrix = 0.5 * np.stack((np.ones_like(angles), p * np.cos(2 * angles), p * np.sin(2 * angles)), axis=-1)
+        intensity[self.nan_mask, ...] = stokes[self.nan_mask, ...] = angles_matrix[self.nan_mask, ...] = np.nan
+
+        # step 1
+        pseudo_inverse_stokes = np.einsum('...ij,...kj->...ik', stokes, stokes)[:, None, ...]
+        st_inv = np.einsum('...ij,...kj->...ki', stokes, intensity)
+        M_p_M_biref = np.linalg.solve(pseudo_inverse_stokes, st_inv)
+
+        # step 2
+        pseudo_inverse_angles = np.einsum('...ki,...kj->...ij', angles_matrix, angles_matrix)
+        angles_intensity = np.einsum('...ij,...ik->...kj', angles_matrix, M_p_M_biref)
+        biref = np.linalg.solve(pseudo_inverse_angles, angles_intensity)
+
+        # normalize biref
+        W, V = np.linalg.eig(np.nan_to_num(biref[..., 1:, 1:], nan=0))
+        biref[..., 1:, 1:] = biref[..., 1:, 1:] / np.max(W.real, axis=-1)[:, None, None]
+
+        # smooth biref
+        # kernel = np.ones((kernel_size, kernel_size)) / kernel_size**2
+        # biref_resh = biref.reshape(self.parser["resolution"] + [9])
+        # biref_smooth = np.stack([convolve2d(biref_resh[..., ii], kernel, mode='same') for ii in range(biref_resh.shape[-1]) ], axis=-1)
+
+        # set necessary values of biref
+        biref_fixed = np.clip(biref, None, 1).reshape(biref.shape)
+        # biref_smooth = np.clip(biref_smooth, None, 1).reshape(biref.shape)
+        biref_fixed[:, 0, 0] = 1  # force to avoid numerical errors
+        biref_fixed[:, 0, 1] = biref_fixed[:, 1, 0] = biref_fixed[:, 0, 2] = biref_fixed[:, 2, 0] = 0
+        self.biref = biref_fixed
+
+    def align_images(self, images_res, rotation_arr, invert=False, fill_value=0, nan_edge=False):
         if invert:
             rotation_arr = rotation_arr
         res_images = []
         for ii in range(len(rotation_arr)):
             rot_image = self.get_rotated_image(images_res[..., ii], -rotation_arr[ii], fill_value=fill_value)
             res_images.append(rot_image)
-        return np.stack(res_images, axis=-1)
+        images_res = np.stack(res_images, axis=-1)
+        return images_res
 
     def realign_observation(self, obs, roll):
         I_interp = self.get_rotated_image(obs.I, roll)
@@ -181,6 +201,7 @@ class SelfCalibration:
         return obs_new.change_roll(np.deg2rad(roll))
 
     def get_rotated_image(self, images, rotation_to, fill_value=0):
+        images = np.nan_to_num(images, nan=fill_value)  # fill nans
         if rotation_to == 0:  # avoid interpolation issues
             return images
         theta_from, phi_from = self.zodipol.create_sky_coords(theta=self.parser["direction"][0], phi=self.parser["direction"][1],

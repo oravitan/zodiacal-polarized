@@ -202,8 +202,8 @@ class Imager:
     # ------------- Birefringence model --------------
     # ------------------------------------------------
     def apply_birefringence(self, obs, biref_mat):
-        observation_mat = obs.to_numpy()
-        observation_biref = np.einsum('a...ij,a...jk->a...ik', biref_mat, observation_mat[..., None])
+        observation_mat = obs.to_numpy(ndims=3)
+        observation_biref = np.einsum('a...ij,a...jk->a...ik', biref_mat[..., :3, :3], observation_mat[..., None])
         I, Q, U = observation_biref[..., 0, 0], observation_biref[..., 1, 0], observation_biref[..., 2, 0]
         return Observation(I, Q, U, theta=obs.theta, phi=obs.phi)
 
@@ -211,8 +211,7 @@ class Imager:
         pol_mueller = self._get_birefringence_polarizer_mat(birefringence_amount)
         pol_rotation = self._get_birefringence_angle_rotation_mat(birefringence_angle)
         pol_rotation_inv = self._get_birefringence_angle_rotation_mat(-birefringence_angle)
-        mul1 = np.einsum('...ij,...jk->...ik', pol_mueller, pol_rotation)
-        mul2 = np.einsum('...ij,...jk->...ik', pol_rotation_inv, mul1)
+        mul2 = np.einsum('...ij,...jk,...kw->...iw', pol_rotation_inv, pol_mueller, pol_rotation)
         return mul2
 
     def _get_birefringence_angle_rotation_mat(self, birefringence_angle):

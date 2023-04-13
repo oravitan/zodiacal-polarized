@@ -34,7 +34,7 @@ class Observation:
         if ndims == 3:
             return np.stack([self.I, self.Q, self.U], axis=-1)
         if ndims == 4:
-            V = np.sqrt(self.I**2 - self.Q**2 - self.U**2)
+            V = np.zeros_like(self.I)
             return np.stack([self.I, self.Q, self.U, V], axis=-1)
         else:
             raise ValueError('Number of dimensions must be equal to 3 or 4')

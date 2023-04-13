@@ -43,18 +43,15 @@ def get_iteration_cost(polarizance_real, polarizance_est_reshape_nan, polarizati
 
 
 def generate_observations(zodipol, parser, n_rotations=40):
-    motion_blur = 360 / n_rotations / zodipol.imager.exposure_time.value * u.deg
+    # motion_blur = 360 / n_rotations / zodipol.imager.exposure_time.value * u.deg
     obs_rot, rotation_list = get_measurements(zodipol, parser, n_rotations=n_rotations)
-    obs_rot = [o.add_radial_blur(motion_blur, list(parser["resolution"])) for o in obs_rot]
-    obs_rot = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"]) for o in obs_rot]
+    # obs_rot = [o.add_radial_blur(motion_blur, list(parser["resolution"])) for o in obs_rot]
+    # obs_rot = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"]) for o in obs_rot]
 
     # add birefringence
-    delta_val, phi_val = np.pi / 8, np.pi / 6
-    # delta_val, phi_val = 0, 0
-    delta = zodipol.imager.get_birefringence_mat(delta_val, 'constant', flat=True, inv=True)
-    # delta = zodipol.imager.get_birefringence_mat(delta_val, 'center', flat=True, inv=True)
-    alpha = zodipol.imager.get_birefringence_mat(phi_val, 'constant', flat=True, angle=-np.pi / 4)
-    # phi = zodipol.imager.get_birefringence_mat(phi_val, 'linear', flat=True, angle=-np.pi / 4)
+    delta_val, phi_val = np.pi / 4, np.pi / 6
+    delta = zodipol.imager.get_birefringence_mat(delta_val, 'center', flat=True, inv=True)
+    alpha = zodipol.imager.get_birefringence_mat(phi_val, 'linear', flat=True, angle=-np.pi / 4, min=0)
     mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, alpha)
     obs_biref = [zodipol.imager.apply_birefringence(o, mueller_truth) for o in obs_rot]
 
@@ -64,21 +61,13 @@ def generate_observations(zodipol, parser, n_rotations=40):
                                                      np.deg2rad(np.linspace(-10, 10, parser["resolution"][1])),
                                                      indexing='ij')
 
-    # angular_amount = np.random.choice(np.linspace(-1, 1, n_rotations), size=(n_rotations), replace=False)
-    # angular_amount = np.linspace(-1, 1, n_rotations)
-    # angular_amount = np.linspace(0, 0, n_rotations)
-    pa_ts_diff = np.deg2rad(3) + polarization_angle_spatial_diff.flatten()[..., None]
-    # pa_ts_diff = polarization_angle_spatial_diff.flatten()[:, None, None][..., None] * angular_amount
+    pa_ts_diff = np.zeros_like(polarization_angle_spatial_diff.flatten()[..., None])
     polarization_angle_real = polarization_angle[None, :] + pa_ts_diff
 
     polarizance, _ = np.meshgrid(np.linspace(-1, 0, parser["resolution"][0]), np.arange(parser["resolution"][1]),
                                  indexing='ij')
     polarizance_real = polarizance.reshape((len(obs_biref[0]), 1))
-    # polariz_amount = np.random.choice(np.linspace(0, 0.4, n_rotations), size=(n_rotations), replace=False)
-    # polariz_amount = np.linspace(0, 0.4, n_rotations)
-    # polariz_amount = np.linspace(0, 0, n_rotations)
-    polarizance_real = 0.9 + 0.1 * polarizance_real  #[..., None] * polariz_amount
-    # polarizance_real = 1 + polarizance_real[..., None] * polariz_amount
+    polarizance_real = 0.9 + 0.1 * polarizance_real
 
     # create observations images
     obs_orig = [zodipol.make_camera_images(obs_biref[ii], polarizance_real[..., None, :], polarization_angle_real[..., None, :],
@@ -93,19 +82,17 @@ def perform_estimation(zodipol, parser, rotation_list, images_res_flat, polariza
     theta0, phi0 = zodipol.create_sky_coords(theta=parser["direction"][0], phi=parser["direction"][1], roll=0 * u.deg, resolution=parser["resolution"])
     callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
     self_calib = SelfCalibration(images_res_flat, rotation_list, zodipol, parser, theta=theta0, phi=phi0)
-    init_dict = {'delta': delta} #{'delta': delta, 'alpha': alpha}
-    cost_itr, clbk_itr = self_calib.calibrate(n_itr=n_itr, mode="{P,eta,alpha}", callback=callback_partial, init=init_dict)
-    p, eta, delta, alpha = self_calib.get_properties()
-    return cost_itr, p, eta, delta, alpha, clbk_itr
+    init_dict = {'eta': polarization_angle_real}  # {'p': polarizance_real, 'eta': polarization_angle_real}
+    cost_itr, clbk_itr = self_calib.calibrate(n_itr=n_itr, mode="P,delta,alpha", callback=callback_partial, init=init_dict)
+    p, eta, biref = self_calib.get_properties()
+    return cost_itr, p, eta, biref, clbk_itr
 
 
 def cost_callback(calib: SelfCalibration, p, eta, mueller):
-    cp, ceta, cdelta, calpha = calib.get_properties()
-    mueller_est = calib.zodipol.imager.get_birefringence_mueller_matrix(cdelta, calpha)
-    p_cost = np.nanmean((p - cp)**2)
-    eta_cost = np.nanmean((eta - ceta)**2)
-    mueller_cost = np.nanmean((mueller - mueller_est)**2)
-    return p_cost, eta_cost, mueller_cost
+    cp, ceta, biref = calib.get_properties()
+    p_cost = np.nanmean((p - np.mean(p) - (cp - np.nanmean(cp))) ** 2)
+    mueller_cost = np.nanmean((mueller[..., :3, :3] - biref)**2)
+    return p_cost, mueller_cost
 
 
 def plot_deviation_comp(parser, polarizance_real, polarizance_est_reshape, polarization_angle_real, polarization_ang_full, saveto=None, set_colors=False, ii=-1):
@@ -116,8 +103,8 @@ def plot_deviation_comp(parser, polarizance_real, polarizance_est_reshape, polar
     ang_est_mean_deviation = polarization_ang_full - polarization_ang_full.mean(axis=-1)[..., None]
 
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(8, 8))
-    p1, p2 = pol_mean_deviation.squeeze()[..., ii], pol_est_mean_deviation[:,ii]
-    p3, p4 = ang_mean_deviation.squeeze()[..., ii], ang_est_mean_deviation[:,ii]
+    p1, p2 = pol_mean_deviation.squeeze()[..., ii], pol_est_mean_deviation[:, ii]
+    p3, p4 = ang_mean_deviation.squeeze()[..., ii], ang_est_mean_deviation[:, ii]
     if set_colors:
         v1, v2 = np.min(p1), np.max(p1)
         v3, v4 = np.min(p3), np.max(p3)
@@ -188,14 +175,14 @@ def main():
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
                       n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
                       resolution=parser["resolution"], imager_params=parser["imager_params"])
-    n_itr = 20
+    n_itr = 10
 
     # generate observations
-    n_rotations = 12
+    n_rotations = 20
     images_res, rotation_list, polarizance_real, polarization_angle_real, delta, alpha = generate_observations(zodipol, parser, n_rotations=n_rotations)
     images_res_flat = images_res.reshape((np.prod(parser["resolution"]), parser["n_polarization_ang"], n_rotations))
     images_res_flat = zodipol.post_process_images(images_res_flat)
-    cost_itr, p_hat, eta_hat, delta, alpha, clbk_itr = perform_estimation(zodipol, parser, rotation_list, images_res_flat,
+    cost_itr, p_hat, eta_hat, biref, clbk_itr = perform_estimation(zodipol, parser, rotation_list, images_res_flat,
                                                   polarizance_real, polarization_angle_real, delta, alpha, n_itr=n_itr)
     p_cost, eta_cost, mueller_cost = list(zip(*clbk_itr))
 
