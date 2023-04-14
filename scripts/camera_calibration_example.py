@@ -119,7 +119,7 @@ if __name__ == '__main__':
         ax_i.grid()
         ax_i.tick_params(labelsize=14)
     ax[-1].set_xlabel("Iteration", fontsize=16)
-    ax[0].set_ylabel("Intensity MSE\n(electrons)", fontsize=16)
+    ax[0].set_ylabel("Intensity MSE\n($electrons^2$)", fontsize=16)
     ax[1].set_ylabel("$\hat{P}$ MSE", fontsize=16)
     ax[2].set_ylabel("$\hat{B}$ MSE", fontsize=16)
     # plt.suptitle("Cost vs. Iteration", fontsize=18)
@@ -139,4 +139,78 @@ if __name__ == '__main__':
     plt.show()
 
     plot_mueller(biref, cbar=True, saveto="outputs/calib_mueller_estimation.pdf")
-    pass
+
+    A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
+
+    # calibration vs. number of observations
+    n_rotations_list = [4, 6, 10, 14, 18, 22, 26, 30]
+    res_cost = []
+    for n_rotations in n_rotations_list:
+        obs, rotation_list = get_observations(n_rotations)
+        obs, images_orig, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs, parser,
+                                                                                                            zodipol)
+        obs_comb = zodipol.combine_observations(obs, polarizance=polarizance_real.squeeze(),
+                                                polarization_angle=polarization_angle_real)
+        callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real,
+                                   mueller=mueller_truth)
+
+        calib = Calibration(obs_comb, zodipol, parser)
+        init = {'eta': polarization_angle_real}
+        p, eta, biref, clbk_itr, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, mode="all",
+                                                            callback=callback_partial, init=init)
+        p_cost, mueller_cost = list(zip(*itr_cost))
+        mean_num_electrons = np.mean((images_orig / A_gamma).to('').value)
+        res_cost.append((clbk_itr[-1] / mean_num_electrons, p_cost[-1], mueller_cost[-1]))
+    intensity_mse, p_mse, biref_mse = list(zip(*res_cost))
+
+    fig, ax = plt.subplots(1, 1, figsize=(6, 3))
+    ax.loglog(n_rotations_list, p_mse, lw=2, c='b')
+    ax2 = ax.twinx()
+    ax2.loglog(n_rotations_list, biref_mse, lw=2, c='r')
+    ax.grid()
+    ax.set_xlabel("Number of observations", fontsize=16)
+    ax.set_ylabel("$P$ MSE", fontsize=16, c='b')
+    ax2.set_ylabel("${\\bf B}$ MSE", fontsize=16, c='r')
+    ax.tick_params(axis='x', labelsize=16)
+    ax.tick_params(axis='y', colors='b', labelsize=16)
+    ax2.tick_params(axis='y', colors='r', labelsize=16)
+    fig.tight_layout()
+    plt.savefig("outputs/calib_mse_exposure_time.pdf", format='pdf', bbox_inches='tight', transparent="True",
+                pad_inches=0)
+    plt.show()
+
+
+    # now estimate how well we calibration based on exposure time
+    n_rotations = 20
+    n_itr = 10
+    exposure_time_list = np.logspace(np.log10(0.5), np.log10(100), 20)
+    res_cost = []
+    for exposure_time in exposure_time_list:
+        zodipol.imager.exposure_time = exposure_time * u.s
+        obs, rotation_list = get_observations(n_rotations)
+        obs, images_orig, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs, parser, zodipol)
+        obs_comb = zodipol.combine_observations(obs, polarizance=polarizance_real.squeeze(), polarization_angle=polarization_angle_real)
+        callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
+
+        calib = Calibration(obs_comb, zodipol, parser)
+        init = {'eta': polarization_angle_real}
+        p, eta, biref, clbk_itr, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, mode="all", callback=callback_partial,init=init)
+        p_cost, mueller_cost = list(zip(*itr_cost))
+        mean_num_electrons = np.mean((images_orig / A_gamma).to('').value)
+        res_cost.append((clbk_itr[-1]/mean_num_electrons, p_cost[-1], mueller_cost[-1]))
+    intensity_mse, p_mse, biref_mse = list(zip(*res_cost))
+
+    fig, ax = plt.subplots(1, 1, figsize=(6, 3))
+    ax.loglog(exposure_time_list, p_mse, lw=2, c='b')
+    ax2 = ax.twinx()
+    ax2.loglog(exposure_time_list, biref_mse, lw=2, c='r')
+    ax.grid()
+    ax.set_xlabel("$\Delta t \;(s)$", fontsize=16)
+    ax.set_ylabel("$P$ MSE", fontsize=16, c='b')
+    ax2.set_ylabel("${\\bf B}$ MSE", fontsize=16, c='r')
+    ax.tick_params(axis='x', labelsize=16)
+    ax.tick_params(axis='y', colors='b', labelsize=16)
+    ax2.tick_params(axis='y', colors='r', labelsize=16)
+    fig.tight_layout()
+    plt.savefig("outputs/calib_mse_exposure_time.pdf", format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
+    plt.show()

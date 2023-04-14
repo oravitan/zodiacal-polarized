@@ -80,7 +80,7 @@ class Calibration:
         # A = np.einsum('...ai, ...ij,...jk->...iak', M_eta, mueller, stokes)
 
         F_P = np.einsum('...ij,...jk->...ik', stokes, mueller)
-        pseudo_inv = np.linalg.pinv(F_P)
+        pseudo_inv = np.linalg.pinv(np.nan_to_num(F_P, nan=0))
         M_p_eta_inv = np.einsum('...ij,...kj->...ik', pseudo_inv, intensity)
         p_est = (M_p_eta_inv[:, 1, 0] + M_p_eta_inv[:, 2, 1] - M_p_eta_inv[:, 1, 2] - M_p_eta_inv[:, 2, 3])/2
         self.p = np.clip(p_est, 0, 1)
@@ -94,10 +94,14 @@ class Calibration:
         stokes = np.stack([o.to_numpy(ndims=3) for o in self.obs], axis=-1).value
         angles_matrix = 0.5 * np.stack((np.ones_like(angles), p * np.cos(2 * angles), p * np.sin(2 * angles)), axis=-1)
 
-        stokes_pseudo_inv = np.linalg.pinv(stokes)
-        angles_pseudo_inv = np.linalg.pinv(angles_matrix)
+        stokes_pseudo_inv = np.linalg.pinv(np.nan_to_num(stokes))
+        angles_pseudo_inv = np.linalg.pinv(np.nan_to_num(angles_matrix))
 
         biref = np.einsum('...ij,...jk,...kw->...iw', angles_pseudo_inv, intensity, stokes_pseudo_inv)
+
+        # normalize biref
+        W, V = np.linalg.eig(np.nan_to_num(biref[..., 1:, 1:], nan=0))
+        biref[..., 1:, 1:] = biref[..., 1:, 1:] / np.max(W.real, axis=-1)[:, None, None]
 
         # smooth biref
         kernel = np.ones((kernel_size, kernel_size)) / kernel_size**2

@@ -159,9 +159,9 @@ def plot_mueller(mueller, parser, cbar=False, saveto=None):
 
 
 def plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto=None):
-    fig, ax = plt.subplots(3, 1, figsize=(6, 6), sharex=True)
+    fig, ax = plt.subplots(3, 1, figsize=(6, 5), sharex=True)
     ax[0].plot(cost_itr, lw=3)
-    ax[0].set_ylabel('Intensity MSE\n(electrons)', fontsize=16)
+    ax[0].set_ylabel('Intensity MSE\n($electrons^2$)', fontsize=16)
     ax[0].tick_params(labelsize=16)
     ax[0].grid()
 
