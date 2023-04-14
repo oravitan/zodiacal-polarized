@@ -83,19 +83,20 @@ class Imager:
         :return: number of electrons
         """
         assert frequency is not None or wavelength is not None, 'Either frequency or wavelength range must be provided'
+        if intensity.unit.is_equivalent('W / m^2 sr Hz'):
+            wavelength = (wavelength if wavelength is not None else frequency.to(u.nm, equivalencies=u.spectral()))
+            jacobian = - c / (wavelength ** 2)
+            intensity = (intensity * jacobian[None, :, None]).to('W / m^2 sr um')
+
         energy = self._get_energy(intensity)  # Energy
 
         # Calculate the number of electrons per pixel
-        if frequency is not None:
-            df = np.gradient(frequency)
-            n_electrons = np.einsum('ij...,j->i...', energy, df / (h * frequency) * weights)  # Number of electrons per frequency
-            # n_electrons = np.trapz(energy * (weights / (h * frequency))[None, :, None], frequency, axis=1)
-        else:
+        if frequency is None:
             frequency = wavelength.to(u.THz, equivalencies=u.spectral())
-            jacobian = - c / (wavelength ** 2)
-            df = np.gradient(frequency)
-            n_electrons = np.einsum('ij...,j->i...', energy, jacobian * df / (h * frequency) * weights)
-            # n_electrons = np.trapz(energy * (jacobian / (h * frequency) * weights)[None, :, None], frequency, axis=1)
+
+        df = np.gradient(frequency)
+        jacobian = - c / (frequency ** 2)
+        n_electrons = np.einsum('ij...,j->i...', energy,jacobian * df / (h * frequency) * weights)  # Number of electrons per frequency
 
         # n_electrons = np.sum(n_electrons_per_freq, axis=1)  # Number of electrons integral
         n_electrons = n_electrons.si  # Number of electrons in SI units
@@ -119,13 +120,17 @@ class Imager:
         :param frequency_weight: frequency weights
         :return: imager received intensity pixels
         """
-        focal_param = np.pi * (self.lens_diameter / 2 / self.lens_focal_length) ** 2 * u.sr  # Focal parameter
-        gamma = self.optical_loss * focal_param * self.quantum_efficiency * self.pixel_area * (1 / (h * frequency[None, None, :]))
-        toa_factor = 1 * u.s  # Top of atmosphere factor
-        A_gamma = 1 / np.trapz(toa_factor * gamma * frequency_weight, frequency) / self.exposure_time
-
+        A_gamma = self.get_A_gamma(frequency, frequency_weight)
         intensity = n_electrons * A_gamma  # Intensity
         return intensity.to('W / m^2 sr')
+
+    def get_A_gamma(self, frequency, frequency_weight):
+        focal_param = np.pi * (self.lens_diameter / 2 / self.lens_focal_length) ** 2 * u.sr  # Focal parameter
+        gamma = self.optical_loss * focal_param * self.quantum_efficiency * self.pixel_area * (
+                    1 / (h * frequency[None, None, :]))
+        toa_factor = 1 * u.s  # Top of atmosphere factor
+        A_gamma = 1 / np.trapz(toa_factor * gamma * frequency_weight, frequency) / self.exposure_time
+        return A_gamma
 
     # ------------------------------------------------
     # ----------------- Noise models -----------------

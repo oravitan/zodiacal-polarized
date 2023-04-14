@@ -25,10 +25,10 @@ class Observation:
         return len(self.I)
 
     @classmethod
-    def from_image(cls, image, polarizance, polarization_angle):
+    def from_image(cls, image, polarizance, polarization_angle, **kwargs):
         polarization_angle = np.broadcast_to(polarization_angle, image.shape)
         I, Q, U = estimate_IQU(image, polarizance, polarization_angle)
-        return cls(I, Q, U)
+        return cls(I, Q, U, **kwargs)
 
     def to_numpy(self, ndims=4):
         if ndims == 3:

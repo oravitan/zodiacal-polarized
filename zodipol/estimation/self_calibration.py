@@ -6,7 +6,6 @@ from scipy.signal import convolve2d
 from tqdm import tqdm
 
 from zodipol.zodipol import Observation
-from zodipol.estimation.estimate_signal import estimate_IQU
 from zodipol.mie_scattering.mueller_matrices import get_rotation_mueller_matrix
 from zodipol.zodipy_local.zodipy.zodipy import IQU_to_image
 from zodipol.utils.math import ang2vec
@@ -26,18 +25,20 @@ class SelfCalibration:
         self.nan_mask = self.get_nan_mask()
         self.initialize()
 
-    def initialize(self, init = None):
+    def initialize(self, init=None):
+        if init is None:
+            init = {}
         self.p = np.ones(self.parser["resolution"]).reshape((-1))
         self.eta = np.zeros(self.parser["resolution"]).reshape((-1))
         delta = self.zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)
         alpha = self.zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)
-        if init is not None and 'p' in init:
+        if 'p' in init:
             self.p = init['p']
-        if init is not None and 'eta' in init:
+        if 'eta' in init:
             self.eta = init['eta']
-        if init is not None and 'delta' in init:
+        if 'delta' in init:
             delta = init['delta']
-        if init is not None and 'alpha' in init:
+        if 'alpha' in init:
             alpha = init['alpha']
         self.biref = self.zodipol.imager.get_birefringence_mueller_matrix(delta, alpha)[..., :3, :3]
 
@@ -86,8 +87,10 @@ class SelfCalibration:
 
     def get_mse(self):
         img_model = self.forward_model()
-        mse = np.nanmean((img_model - self.images.value) ** 2)
-        return mse
+        mse = np.nanmean((img_model*self.images.unit - self.images) ** 2)
+        A_gamma = self.zodipol.imager.get_A_gamma(self.zodipol.frequency, self.zodipol.get_imager_response())
+        mse_electrons = (np.sqrt(mse) / A_gamma).to('').value.squeeze() ** 2
+        return mse_electrons
 
     def _calibrate_itr(self, mode="all"):
         self.obs = self.estimate_observations()
@@ -145,9 +148,10 @@ class SelfCalibration:
 
         M_p_eta_inv = np.linalg.solve(A_A_T, A_I_T)
         p = M_p_eta_inv[:, 1:].mean(axis=1)
-        self.p = p - np.nanmean(p)  # p is solved up to a global shift - set max to 1
+        p[abs((p - np.nanmean(p)) / np.nanstd(p)) > 4] = np.nan  # remove outliers
+        self.p = p - np.nanmax(p) + 1  # p is solved up to a global shift - set max to 1
 
-    def estimate_delta_eta(self, kernel_size = 5):
+    def estimate_delta_eta(self, kernel_size=5):
         intensity = self.images.value
         p = self.p[:, None]
         angles = self.eta[:, None] + self.parser["polarization_angle"]
@@ -172,9 +176,10 @@ class SelfCalibration:
         biref[..., 1:, 1:] = biref[..., 1:, 1:] / np.max(W.real, axis=-1)[:, None, None]
 
         # smooth biref
-        # kernel = np.ones((kernel_size, kernel_size)) / kernel_size**2
-        # biref_resh = biref.reshape(self.parser["resolution"] + [9])
-        # biref_smooth = np.stack([convolve2d(biref_resh[..., ii], kernel, mode='same') for ii in range(biref_resh.shape[-1]) ], axis=-1)
+        kernel = np.ones((kernel_size, kernel_size)) / kernel_size ** 2
+        biref_resh = biref.reshape(self.parser["resolution"] + [9])
+        biref_smooth = np.stack([convolve2d(biref_resh[..., ii], kernel, mode='same', boundary='symm') for ii in range(biref_resh.shape[-1])], axis=-1)
+        biref = biref_smooth.reshape(biref.shape)
 
         # set necessary values of biref
         biref_fixed = np.clip(biref, None, 1).reshape(biref.shape)
