@@ -72,22 +72,18 @@ class Calibration:
 
     def estimate_p_eta(self, images_orig):
         # preparation
-        angles = self.eta[:, None] + self.parser["polarization_angle"]
         intensity = images_orig.value
         mueller = self.biref
-        stokes = np.stack([o.to_numpy(ndims=3) for o in self.obs], axis=-1).value
+        stokes = np.stack([o.to_numpy(ndims=3) for o in self.obs], axis=-2).value
 
-        M_eta = 0.5 * np.stack((np.ones_like(angles), np.cos(2 * angles), np.sin(2 * angles)), axis=-1)
-        A = np.einsum('...ai, ...ij,...jk->...iak', M_eta, mueller, stokes)
+        # M_eta = 0.5 * np.stack((np.ones_like(angles), np.cos(2 * angles), np.sin(2 * angles)), axis=-1)
+        # A = np.einsum('...ai, ...ij,...jk->...iak', M_eta, mueller, stokes)
 
-        # calculate the pseudo inverse
-        A_A_T = np.einsum('...iak,...jak->...ij', A, A)
-        A_I_T = np.einsum('...ijk,...jk->...i', A, intensity)
-
-        M_p_eta_inv = np.linalg.solve(A_A_T, A_I_T)
-        p = M_p_eta_inv[:, 1:].mean(axis=1)
-        # p[(p - np.nanmean(p)) / np.nanstd(p) > 4] = np.nan  # remove outliers
-        self.p = np.clip(p, 0, 1)
+        F_P = np.einsum('...ij,...jk->...ik', stokes, mueller)
+        pseudo_inv = np.linalg.pinv(F_P)
+        M_p_eta_inv = np.einsum('...ij,...kj->...ik', pseudo_inv, intensity)
+        p_est = (M_p_eta_inv[:, 1, 0] + M_p_eta_inv[:, 2, 1] - M_p_eta_inv[:, 1, 2] - M_p_eta_inv[:, 2, 3])/2
+        self.p = np.clip(p_est, 0, 1)
 
     def estimate_delta_eta(self, images_orig, kernel_size=5):
         intensity = images_orig.value
@@ -97,21 +93,11 @@ class Calibration:
         # preparation
         stokes = np.stack([o.to_numpy(ndims=3) for o in self.obs], axis=-1).value
         angles_matrix = 0.5 * np.stack((np.ones_like(angles), p * np.cos(2 * angles), p * np.sin(2 * angles)), axis=-1)
-        # intensity[self.nan_mask, ...] = stokes[self.nan_mask, ...] = angles_matrix[self.nan_mask, ...] = np.nan
 
-        # step 1
-        pseudo_inverse_stokes = np.einsum('...ij,...kj->...ik', stokes, stokes)[:, None, ...]
-        st_inv = np.einsum('...ij,...kj->...ki', stokes, intensity)
-        M_p_M_biref = np.linalg.solve(pseudo_inverse_stokes, st_inv)
+        stokes_pseudo_inv = np.linalg.pinv(stokes)
+        angles_pseudo_inv = np.linalg.pinv(angles_matrix)
 
-        # step 2
-        pseudo_inverse_angles = np.einsum('...ki,...kj->...ij', angles_matrix, angles_matrix)
-        angles_intensity = np.einsum('...ij,...ik->...kj', angles_matrix, M_p_M_biref)
-        biref = np.linalg.solve(pseudo_inverse_angles, angles_intensity)
-
-        # normalize biref
-        W, V = np.linalg.eig(np.nan_to_num(biref[..., 1:, 1:], nan=0))
-        biref[..., 1:, 1:] = biref[..., 1:, 1:] / np.max(W.real, axis=-1)[:, None, None]
+        biref = np.einsum('...ij,...jk,...kw->...iw', angles_pseudo_inv, intensity, stokes_pseudo_inv)
 
         # smooth biref
         kernel = np.ones((kernel_size, kernel_size)) / kernel_size**2
@@ -120,8 +106,7 @@ class Calibration:
         biref = biref_smooth.reshape(biref.shape)
 
         # set necessary values of biref
-        biref_fixed = np.clip(biref, -1, 1).reshape(biref.shape)
-        # biref_smooth = np.clip(biref_smooth, None, 1).reshape(biref.shape)
-        biref_fixed[:, 0, 0] = 1  # force to avoid numerical errors
-        biref_fixed[:, 0, 1] = biref_fixed[:, 1, 0] = biref_fixed[:, 0, 2] = biref_fixed[:, 2, 0] = 0
-        self.biref = biref_fixed
+        # biref_fixed = np.clip(biref, -1, 1).reshape(biref.shape)
+        biref[:, 0, 0] = 1  # force to avoid numerical errors
+        biref[:, 0, 1] = biref[:, 1, 0] = biref[:, 0, 2] = biref[:, 2, 0] = 0
+        self.biref = biref
