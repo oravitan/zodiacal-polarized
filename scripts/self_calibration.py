@@ -71,10 +71,10 @@ def generate_observations(zodipol, parser, n_rotations=40):
 
     # create observations images
     obs_orig = [zodipol.make_camera_images(obs_biref[ii], polarizance_real[..., None, :], polarization_angle_real[..., None, :],
-                                                 n_realizations=parser["n_realizations"], add_noise=True) for ii in range(n_rotations)]
+                                                 n_realizations=parser["n_realizations"], add_noise=True) for ii in range(n_rotations)]  #
     images_orig = np.stack(obs_orig, axis=-1)
     images_res = images_orig.reshape((parser["resolution"] + list(images_orig.shape[1:])))
-    return images_res, rotation_list, polarizance_real.squeeze(), pa_ts_diff.squeeze(), delta, alpha
+    return obs_rot, images_res, rotation_list, polarizance_real.squeeze(), pa_ts_diff.squeeze(), delta, alpha
 
 
 def perform_estimation(zodipol, parser, rotation_list, images_res_flat, polarizance_real, polarization_angle_real, delta, alpha, n_itr=10):
@@ -96,20 +96,17 @@ def cost_callback(calib: SelfCalibration, p, eta, mueller):
 
 
 def plot_deviation_comp(parser, polarizance_real, polarizance_est_reshape, saveto=None, set_colors=False):
-    pol_mean_deviation = polarizance_real - np.nanmean(polarizance_real)
-    pol_est_mean_deviation = polarizance_est_reshape - np.nanmean(polarizance_est_reshape)
+    pol_mean_deviation = polarizance_real
+    pol_est_mean_deviation = polarizance_est_reshape
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
     p1, p2 = pol_mean_deviation.squeeze(), pol_est_mean_deviation
-    if set_colors:
-        v1, v2 = np.min(p1), np.max(p1)
-    else:
-        v1, v2, v3, v4 = None, None, None, None
-    c1 = ax1.imshow(p1.reshape(parser["resolution"]), vmin=v1, vmax=v2)
-    c2 = ax2.imshow(p2.reshape(parser["resolution"]), vmin=v1, vmax=v2)
+
+    c1 = ax1.imshow(p1.reshape(parser["resolution"]))
+    c2 = ax2.imshow(p2.reshape(parser["resolution"]))
     cbar1 = fig.colorbar(c1, ax=ax1); cbar1.ax.tick_params(labelsize=14)
     cbar2 = fig.colorbar(c2, ax=ax2); cbar2.ax.tick_params(labelsize=14)
-    ax1.set_title('$P^{true}-P^{true}_{mean}$', fontsize=18); ax1.set_axis_off()
-    ax2.set_title('$\hat{P}-\hat{P}_{mean}$', fontsize=18); ax2.set_axis_off()
+    ax1.set_title('True $P$', fontsize=18); ax1.set_axis_off()
+    ax2.set_title('$\hat{P}$', fontsize=18); ax2.set_axis_off()
     fig.tight_layout()
     if saveto is not None:
         plt.savefig(saveto, format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
@@ -133,12 +130,16 @@ def plot_cost(n_rotation_list, polariz_bias_l, pol_ang_bias_l, saveto=None, cost
         plt.savefig(saveto, format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
 
-def plot_mueller(mueller, parser, cbar=False, saveto=None):
+def plot_mueller(mueller, parser, cbar=False, saveto=None, vmin=None, vmax=None):
+    if vmin is None:
+        vmin = np.nanmin(mueller)
+    if vmax is None:
+        vmax = np.nanmax(mueller)
     mueller = mueller[..., :3, :3]
     fig, ax = plt.subplots(3,3, figsize=(6,6), sharex='col', sharey='row', subplot_kw={'xticks': [], 'yticks': []})
     for i in range(3):
         for j in range(3):
-            c = ax[i,j].imshow(mueller[..., i, j].reshape(parser["resolution"]), vmin=mueller.min(), vmax=mueller.max())
+            c = ax[i,j].imshow(mueller[..., i, j].reshape(parser["resolution"]), vmin=vmin, vmax=vmax)
             # ax[i,j].get_xaxis().set_visible(False)
             # ax[i,j].get_yaxis().set_visible(False)
     ax[0,0].set_ylabel(0, fontsize=16)
@@ -187,11 +188,11 @@ def main():
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
                       n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
                       resolution=parser["resolution"], imager_params=parser["imager_params"])
-    n_itr = 10
+    n_itr = 20
 
     # generate observations
     n_rotations = 20
-    images_res, rotation_list, polarizance_real, polarization_angle_real, delta, alpha = generate_observations(zodipol, parser, n_rotations=n_rotations)
+    obs_truth, images_res, rotation_list, polarizance_real, polarization_angle_real, delta, alpha = generate_observations(zodipol, parser, n_rotations=n_rotations)
     images_res_flat = images_res.reshape((np.prod(parser["resolution"]), parser["n_polarization_ang"], n_rotations))
     images_res_flat = zodipol.post_process_images(images_res_flat)
     cost_itr, p_hat, eta_hat, biref, clbk_itr = perform_estimation(zodipol, parser, rotation_list, images_res_flat,
@@ -199,7 +200,7 @@ def main():
     p_cost, mueller_cost = list(zip(*clbk_itr))
     plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto='outputs/self_calibration_cost_itr.pdf')
     plot_deviation_comp(parser, polarizance_real, p_hat, set_colors=True, saveto='outputs/self_calibration_polarizance_est.pdf')
-    plot_mueller(biref, parser)
+    plot_mueller(biref, parser, cbar=True, vmin=-0.05, vmax=1, saveto='outputs/self_calib_birefringence_est.pdf')
     pass
 
 

@@ -58,10 +58,8 @@ def get_source_parameters_kelsall_comp(
         source_parameters[comp_label]["albedo"] = albedo
 
     if model.phase_coefficients is not None:
-        phase_coefficients = interpolator(y=np.asarray(model.phase_coefficients))(
-            bandpass.frequencies.value
-        )
-        phase_coefficients = interpolator(y=np.asarray(model.phase_coefficients))(
+        interpolator_phase = partial(interp1d, x=spectrum, fill_value="extrapolate", kind='nearest')
+        phase_coefficients = interpolator_phase(y=np.asarray(model.phase_coefficients))(
             bandpass.frequencies.value
         )
     else:
