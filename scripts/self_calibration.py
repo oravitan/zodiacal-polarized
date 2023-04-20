@@ -1,3 +1,6 @@
+"""
+This script performs self-calibration on a Zodipol object.
+"""
 import os
 import pickle as pkl
 import numpy as np
@@ -82,8 +85,8 @@ def perform_estimation(zodipol, parser, rotation_list, images_res_flat, polariza
     theta0, phi0 = zodipol.create_sky_coords(theta=parser["direction"][0], phi=parser["direction"][1], roll=0 * u.deg, resolution=parser["resolution"])
     callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
     self_calib = SelfCalibration(images_res_flat, rotation_list, zodipol, parser, theta=theta0, phi=phi0)
-    init_dict = {'eta': polarization_angle_real}  # {'p': polarizance_real, 'eta': polarization_angle_real}
-    cost_itr, clbk_itr = self_calib.calibrate(n_itr=n_itr, mode="P,delta,alpha", callback=callback_partial, init=init_dict)
+    init_dict = {'eta': polarization_angle_real}
+    cost_itr, clbk_itr = self_calib.calibrate(images_res_flat, n_itr=n_itr, callback=callback_partial, init=init_dict)
     p, eta, biref = self_calib.get_properties()
     return cost_itr, p, eta, biref, clbk_itr
 

@@ -1,5 +1,8 @@
 import numpy as np
 import transformations as transf
+import astropy.units as u
+
+from scipy.interpolate import RegularGridInterpolator
 
 xaxis, yaxis, zaxis = [1, 0, 0], [0, 1, 0], [0, 0, 1]
 
@@ -55,3 +58,47 @@ def get_c2w(theta, phi, roll):
 
 def get_w2c(theta, phi, roll):
     return np.linalg.inv(get_c2w(theta, phi, roll))
+
+
+# image alignment and rotation methods
+def align_images(zodipol, parser, images_res, rotation_arr, invert=False, fill_value=0, method="nearest"):
+    """
+    Align the images to the reference image.
+    :param images_res: The images to align.
+    :param rotation_arr: The rotation angles of the images relative to reference frame.
+    """
+    if invert:
+        rotation_arr = rotation_arr
+    res_images = []
+    for ii in range(len(rotation_arr)):
+        rot_image = get_rotated_image(zodipol, parser, images_res[..., ii], -rotation_arr[ii], fill_value=fill_value, method=method)
+        res_images.append(rot_image)
+    images_res = np.stack(res_images, axis=-1)
+    return images_res
+
+
+def get_rotated_image(zodipol, parser, images, rotation_to, fill_value=0, method="nearest"):
+    """
+    Rotate the images to the reference frame.
+    :param images: The images to rotate.
+    :param rotation_to: The rotation angle to rotate to.
+    :param fill_value: The value to fill non-intersecting pixels.
+    :param method: The interpolation method.
+    """
+    images = np.nan_to_num(images, nan=fill_value)  # fill nans
+    if rotation_to == 0:  # avoid interpolation issues
+        return images
+    theta_from, phi_from = zodipol.create_sky_coords(theta=parser["direction"][0],
+                                                          phi=parser["direction"][1],
+                                                          roll=0 * u.deg, resolution=parser["resolution"])
+    vec_from = ang2vec(theta_from, phi_from)
+    x = np.linspace(vec_from[:, 0].min(), vec_from[:, 0].max(), parser["resolution"][1])
+    y = np.linspace(vec_from[:, 1].min(), vec_from[:, 1].max(), parser["resolution"][0])
+    images_resh = images.reshape(parser["resolution"] + list(images.shape[1:]))
+    grid_interp = RegularGridInterpolator((y, x), images_resh, bounds_error=False, fill_value=fill_value, method=method)
+
+    theta_to, phi_to = zodipol.create_sky_coords(theta=parser["direction"][0], phi=parser["direction"][1],
+                                                      roll=rotation_to * u.deg, resolution=parser["resolution"])
+    vec_to = ang2vec(theta_to, phi_to)
+    interp = grid_interp(list(zip(vec_to[:, 1], vec_to[:, 0])))
+    return interp

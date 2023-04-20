@@ -79,10 +79,11 @@ class BaseCalibration:
         :param init: A dictionary with initial values for the parameters.
         """
         self.initialize(init)
-        itr_cost = [self.get_mse(images_orig)]
-        itr_callback = []
-        if callback is not None:
-            itr_callback.append(callback(self))
+        itr_callback, itr_cost = [], []
+        if self.obs is not None:
+            itr_cost.append(self.get_mse(images_orig))
+            if callback is not None:
+                itr_callback.append(callback(self))
         for _ in tqdm(range(n_itr), disable=disable):
             self._calibrate_itr(images_orig)
             itr_cost.append(self.get_mse(images_orig))
