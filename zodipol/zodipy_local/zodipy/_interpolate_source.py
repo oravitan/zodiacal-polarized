@@ -57,15 +57,9 @@ def get_source_parameters_kelsall_comp(
         source_parameters[comp_label]["emissivity"] = emissivity
         source_parameters[comp_label]["albedo"] = albedo
 
-    if model.phase_coefficients is not None:
-        interpolator_phase = partial(interp1d, x=spectrum, fill_value="extrapolate", kind='nearest')
-        phase_coefficients = interpolator_phase(y=np.asarray(model.phase_coefficients))(
-            bandpass.frequencies.value
-        )
-    else:
-        phase_coefficients = np.repeat(
-            np.zeros((3, 1)), repeats=bandpass.frequencies.size, axis=-1
-        )
+    phase_interp_ang = np.linspace(0, np.pi, 100)
+    phase_coefficients = np.asarray(model.phase_coefficients)
+    phase_funcs = interpolate_phase(phase_interp_ang, bandpass.frequencies.value, phase_coefficients, spectrum)
 
     if model.solar_irradiance is not None:
         solar_irradiance = interpolator(y=model.solar_irradiance)(
@@ -81,12 +75,25 @@ def get_source_parameters_kelsall_comp(
         phase_coefficients = bandpass.integrate(phase_coefficients)
         solar_irradiance = bandpass.integrate(solar_irradiance)
     source_parameters["common"] = {}
-    source_parameters["common"]["phase_coefficients"] = tuple(phase_coefficients)
+    source_parameters["common"]["phase_coefficients"] = tuple(phase_funcs)
+    source_parameters["common"]["phase_angs"] = phase_interp_ang
     source_parameters["common"]["solar_irradiance"] = solar_irradiance
     source_parameters["common"]["T_0"] = model.T_0
     source_parameters["common"]["delta"] = model.delta
 
     return source_parameters
+
+
+def interpolate_phase(interp_angle, wavelength, C, spectrum):
+    orig_phase_func = [get_phase_function(interp_angle, c) for c in list(zip(*C))]
+    interp_res = []
+    for ang, val in zip(interp_angle, list(zip(*orig_phase_func))):
+        val_log = np.log10(val)
+        interpolator = interp1d(x=spectrum, y=val_log, fill_value="extrapolate")
+        ang_res = interpolator(wavelength / 1000)
+        interp_res.append(10 ** (ang_res))
+    interp_res_wavelength = list(zip(*interp_res))
+    return interp_res_wavelength
 
 
 def get_source_parameters_rmm(

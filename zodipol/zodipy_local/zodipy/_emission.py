@@ -10,7 +10,8 @@ from zodipol.zodipy_local.zodipy._ipd_model import RRM, InterplanetaryDustModel,
 from zodipol.zodipy_local.zodipy._source_funcs import (
     get_dust_grain_temperature,
     get_scattering_angle,
-    get_phase_function
+    get_phase_function,
+    interpolate_phase
 )
 
 from zodipol.mie_scattering.mueller_matrices import get_unpolarized_stokes_vector, get_rotation_mueller_matrix
@@ -40,6 +41,7 @@ def kelsall(
     emissivity: np.float64 | list[np.float64],
     albedo: np.float64 | list[np.float64],
     phase_coefficients: tuple[float, ...],
+    phase_angs: list[np.float64],
     solar_irradiance: np.float64 | list[np.float64],
     bp_interpolation_table: npt.NDArray[np.float64],
     mie_scattering_model: MieScatteringModel,
@@ -69,8 +71,7 @@ def kelsall(
     if any(albedo != 0):
         solar_flux = solar_irradiance / R_helio**2
         scattering_angle = get_scattering_angle(R_los, R_helio, X_los, X_helio)
-        phase_function = np.stack(list(map(get_phase_function, repeat(scattering_angle.squeeze()), list(zip(*phase_coefficients)))), axis=-1)
-        phase_function = np.clip(phase_function, 0, None)
+        phase_function = interpolate_phase(scattering_angle.squeeze(), phase_coefficients, phase_angs)
 
         scattering_intensity = np.stack([phase_function, np.zeros_like(phase_function), np.zeros_like(phase_function), np.zeros_like(phase_function)], axis=-1)
         emission += extinction_sca[..., None, None] * solar_flux[..., None, None] * scattering_intensity[..., None]

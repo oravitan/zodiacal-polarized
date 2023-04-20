@@ -54,7 +54,7 @@ def plot_skymap(skymap, title=None, saveto=None, **kwargs):
     plt.show()
 
 
-def plot_skymap_multicolor(skymap, title=None, saveto=None, colorbar=False, log=False, vmin=None, vmax=None, figsize=(10, 6), **kwargs):
+def plot_skymap_multicolor(skymap, title=None, saveto=None, colorbar=False, log=False, vmin=None, vmax=None, figsize=(10, 6), gamma=1, **kwargs):
     if log:
         skymap = np.log10(skymap)
         vmin = (np.log10(vmin) if vmin is not None else None)
@@ -71,6 +71,7 @@ def plot_skymap_multicolor(skymap, title=None, saveto=None, colorbar=False, log=
     interp_norm = (interp - vmin) / (vmax - vmin)
     interp_norm = np.nan_to_num(interp_norm, nan=0.5)
     interp_norm = np.clip(interp_norm, 0, 1)
+    interp_norm = interp_norm ** gamma
 
     plt.figure(figsize=figsize)
     plt.subplot(projection='mollweide')

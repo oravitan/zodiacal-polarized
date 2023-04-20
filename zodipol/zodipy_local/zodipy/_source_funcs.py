@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import TYPE_CHECKING
+from scipy.interpolate import interp1d
 
 import numpy as np
 
@@ -70,6 +71,11 @@ def get_scattering_angle(
     cos_theta = (X_los * X_helio).sum(axis=0) / (R_los * R_helio)
     cos_theta = np.clip(cos_theta, -1, 1)
     return np.arccos(-cos_theta)
+
+
+def interpolate_phase(theta, phase_coefficients, phase_angs):
+    interpolate_res = interp1d(x=phase_angs, y=phase_coefficients, fill_value='interpolate')(theta)
+    return interpolate_res.T
 
 
 def get_phase_function(
