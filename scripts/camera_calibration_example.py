@@ -111,7 +111,7 @@ if __name__ == '__main__':
 
     calib = Calibration(obs_comb, zodipol, parser)
     init = {'eta': polarization_angle_real}
-    p, eta, biref, cost, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, mode="all", callback=callback_partial, init=init)
+    p, eta, biref, cost, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, callback=callback_partial, init=init)
 
     fig, ax = plt.subplots(3, 1, sharex=True, figsize=(6, 5))
     for ax_i, c in zip(ax, [cost] + list(zip(*itr_cost))):
@@ -156,7 +156,7 @@ if __name__ == '__main__':
 
         calib = Calibration(obs_comb, zodipol, parser)
         init = {'eta': polarization_angle_real}
-        p, eta, biref, clbk_itr, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, mode="all",
+        p, eta, biref, clbk_itr, itr_cost = calib.calibrate(images_orig, n_itr=n_itr,
                                                             callback=callback_partial, init=init)
         p_cost, mueller_cost = list(zip(*itr_cost))
         mean_num_electrons = np.mean((images_orig / A_gamma).to('').value)
@@ -194,7 +194,7 @@ if __name__ == '__main__':
 
         calib = Calibration(obs_comb, zodipol, parser)
         init = {'eta': polarization_angle_real}
-        p, eta, biref, clbk_itr, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, mode="all", callback=callback_partial,init=init)
+        p, eta, biref, clbk_itr, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, callback=callback_partial,init=init)
         p_cost, mueller_cost = list(zip(*itr_cost))
         mean_num_electrons = np.mean((images_orig / A_gamma).to('').value)
         res_cost.append((clbk_itr[-1]/mean_num_electrons, p_cost[-1], mueller_cost[-1]))
