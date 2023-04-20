@@ -35,7 +35,6 @@ class Zodipol:
         self._set_imager_spectrum(n_freq=n_freq, color=color)  # Generate the spectrum
 
         self.zodipy = Zodipy("dirbe", solar_cut=solar_cut, extrapolate=True, parallel=parallel, **zodipy_params)  # Initialize the model
-        self._set_mie_model(mie_model_path=mie_model_path)  # Initialize the mie model
 
         self.isl = (self._set_integrated_starlight(integrated_starlight_path=integrated_starlight_path) if isl is True else None)  # Initialize the integrated starlight model
         self.planetary = (PlanetaryLight() if planetary is True else None)
@@ -45,7 +44,7 @@ class Zodipol:
         obs_time = (Time(obs_time) if not isinstance(obs_time, Time) else obs_time)  # Observation time
         theta_vec, phi_vec = self.create_sky_coords(theta=theta, phi=phi, roll=roll, resolution=self.imager.resolution)
         binned_emission = self.zodipy.get_emission_ang(self.frequency, theta_vec, phi_vec,
-                                                              obs_time=obs_time, mie_scattering_model=self.mie_model,
+                                                              obs_time=obs_time,
                                                               weights=self.frequency_weight, lonlat=lonlat,
                                                               polarization_angle=self.polarization_angle,
                                                               polarizance=self.polarizance, return_IQU=True)
@@ -58,7 +57,7 @@ class Zodipol:
     def create_full_sky_observation(self, nside: int = 64, obs_time: Time | str = Time("2022-06-14"),):
         obs_time = (Time(obs_time) if not isinstance(obs_time, Time) else obs_time)  # Observation time
         binned_emission = self.zodipy.get_binned_emission_pix(self.frequency, np.arange(hp.nside2npix(nside)), nside,
-                                                              obs_time=obs_time, mie_scattering_model=self.mie_model,
+                                                              obs_time=obs_time,
                                                               weights=self.frequency_weight,
                                                               polarization_angle=self.polarization_angle,
                                                               polarizance=self.polarizance, return_IQU=True)
@@ -144,15 +143,15 @@ class Zodipol:
         theta_v, phi_v = vec2ang(mul) * u.rad
         return theta_v.flatten(), phi_v.flatten()
 
-    def _set_mie_model(self, mie_model_path=MIE_MODEL_DEFAULT_PATH):
-        if mie_model_path is None:
-            return  # No mie model
-        if os.path.isfile(mie_model_path):
-            mie_model = MieScatteringModel.load(mie_model_path)
-        else:
-            spectrum = np.logspace(np.log10(300), np.log10(700), 20)  # white light wavelength in nm
-            mie_model = MieScatteringModel.train(spectrum)
-        self.mie_model = mie_model
+    # def _set_mie_model(self, mie_model_path=MIE_MODEL_DEFAULT_PATH):
+    #     if mie_model_path is None:
+    #         return  # No mie model
+    #     if os.path.isfile(mie_model_path):
+    #         mie_model = MieScatteringModel.load(mie_model_path)
+    #     else:
+    #         spectrum = np.logspace(np.log10(300), np.log10(700), 20)  # white light wavelength in nm
+    #         mie_model = MieScatteringModel.train(spectrum)
+    #     self.mie_model = mie_model
 
     def _set_integrated_starlight(self, integrated_starlight_path=INTEGRATED_STARLIGHT_MODEL_PATH):
         if integrated_starlight_path is None or not os.path.isfile(integrated_starlight_path):

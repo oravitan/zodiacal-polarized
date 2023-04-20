@@ -22,7 +22,6 @@ from zodipol.zodipy_local.zodipy._sky_coords import get_obs_and_earth_positions
 from zodipol.zodipy_local.zodipy._unit_vectors import get_unit_vectors_from_ang, get_unit_vectors_from_pixels
 from zodipol.zodipy_local.zodipy._validators import get_validated_ang, get_validated_pix
 from zodipol.zodipy_local.zodipy.model_registry import model_registry
-from zodipol.zodipy_local.zodipy._optical_depth import kelsall_optical_depth
 
 from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 
@@ -138,7 +137,6 @@ class Zodipy:
         coord_in: Literal["E", "G", "C"] = "E",
         polarization_angle: float | list | np.ndarray = 0.0,
         polarizance: float = 0.5,
-        mie_scattering_model: MieScatteringModel = None,
         return_IQU: bool = False
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated zodiacal emission given angles on the sky.
@@ -205,7 +203,6 @@ class Zodipy:
             return_comps=return_comps,
             polarization_angle=polarization_angle,
             polarizance=polarizance,
-            mie_scattering_model=mie_scattering_model,
             return_IQU=return_IQU
         )
 
@@ -222,7 +219,6 @@ class Zodipy:
         coord_in: Literal["E", "G", "C"] = "E",
         polarization_angle: float | list | np.ndarray = 0.0,
         polarizance: float = 0.5,
-        mie_scattering_model: MieScatteringModel = None,
         return_IQU: bool = False
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated zodiacal emission given pixel numbers.
@@ -282,7 +278,6 @@ class Zodipy:
             return_comps=return_comps,
             polarization_angle=polarization_angle,
             polarizance=polarizance,
-            mie_scattering_model=mie_scattering_model,
             return_IQU=return_IQU
         )
 
@@ -301,7 +296,6 @@ class Zodipy:
         coord_in: Literal["E", "G", "C"] = "E",
         polarization_angle: float | list | np.ndarray = 0.0,
         polarizance: float = 0.5,
-        mie_scattering_model: MieScatteringModel = None,
         return_IQU: bool = False
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated binned zodiacal emission given angles on the sky.
@@ -374,7 +368,6 @@ class Zodipy:
             return_comps=return_comps,
             polarization_angle=polarization_angle,
             polarizance=polarizance,
-            mie_scattering_model=mie_scattering_model,
             return_IQU=return_IQU
         )
 
@@ -391,7 +384,6 @@ class Zodipy:
         coord_in: Literal["E", "G", "C"] = "E",
         polarization_angle: float | list | np.ndarray = 0.0,
         polarizance: float = 0.5,
-        mie_scattering_model: MieScatteringModel = None,
         return_IQU: bool = False
     ) -> u.Quantity[u.MJy / u.sr]:
         """Return the simulated binned zodiacal Emission given pixel numbers.
@@ -454,7 +446,6 @@ class Zodipy:
             return_comps=return_comps,
             polarization_angle=polarization_angle,
             polarizance=polarizance,
-            mie_scattering_model=mie_scattering_model,
             return_IQU=return_IQU
         )
 
@@ -473,7 +464,6 @@ class Zodipy:
         return_comps: bool = False,
         polarization_angle: float | list | np.ndarray = 0.0,
         polarizance: float = 0.5,
-        mie_scattering_model: MieScatteringModel = None,
         return_IQU: bool = False
     ) -> u.Quantity[u.MJy / u.sr]:
         """Compute the component-wise zodiacal emission."""
@@ -486,9 +476,6 @@ class Zodipy:
         )
 
         wavelength = freq.to(u.nm, equivalencies=u.spectral()).value
-        if mie_scattering_model is None:
-            logging.info('Started mie scattering model calculations')
-            mie_scattering_model = MieScatteringModel.train(wavelength)
 
         # Get model parameters, some of which have been interpolated to the given
         # frequency or bandpass.
@@ -525,8 +512,6 @@ class Zodipy:
             EMISSION_MAPPING[type(self._ipd_model)],
             X_obs=observer_position,
             bp_interpolation_table=bandpass_interpolatation_table,
-            mie_scattering_model=mie_scattering_model,
-            wavelength=wavelength,
             **source_parameters["common"],
         )
 
@@ -634,213 +619,6 @@ class Zodipy:
         I, U, Q = emission[..., 0], emission[..., 1], emission[..., 2]
         simulated_emission = IQU_to_image(I, Q, U, polarizance, polarization_angle)
         return simulated_emission
-
-    def get_binned_optical_depth_pix(
-        self,
-        freq: FrequencyOrWavelength,
-        pixels: Pixels,
-        nside: int,
-        obs_time: Time,
-        obs: str = "earth",
-        obs_pos: u.Quantity[u.AU] | None = None,
-        weights: Sequence[float] | npt.NDArray[np.floating] | None = None,
-        return_comps: bool = False,
-        coord_in: Literal["E", "G", "C"] = "E",
-        mie_scattering_model: MieScatteringModel = None,
-    ) -> u.Quantity[u.MJy / u.sr]:
-        pixels = get_validated_pix(pixels=pixels, nside=nside)
-
-        logging.info('Started pixels unit vector calculations')
-        unique_pixels, counts = np.unique(pixels, return_counts=True)
-        unit_vectors = get_unit_vectors_from_pixels(
-            coord_in=coord_in,
-            pixels=unique_pixels,
-            nside=nside,
-        )
-
-        return self._compute_optical_depth(
-            freq=freq,
-            weights=weights,
-            obs=obs,
-            obs_time=obs_time,
-            obs_pos=obs_pos,
-            unit_vectors=unit_vectors,
-            indicies=counts,
-            binned=True,
-            pixels=unique_pixels,
-            nside=nside,
-            return_comps=return_comps,
-            mie_scattering_model=mie_scattering_model,
-        )
-
-    def _compute_optical_depth(
-        self,
-        freq: FrequencyOrWavelength,
-        weights: Sequence[float] | npt.NDArray[np.floating] | None,
-        obs: str,
-        obs_time: Time,
-        unit_vectors: npt.NDArray[np.float64],
-        indicies: npt.NDArray[np.int64],
-        binned: bool = False,
-        obs_pos: u.Quantity[u.AU] | None = None,
-        pixels: npt.NDArray[np.int64] | None = None,
-        nside: int | None = None,
-        return_comps: bool = False,
-        mie_scattering_model: MieScatteringModel = None,
-    ) -> u.Quantity[u.MJy / u.sr]:
-        """Compute the component-wise zodiacal emission."""
-        logging.info('Started emission calculations')
-        bandpass = validate_and_get_bandpass(
-            freq=freq,
-            weights=weights,
-            model=self._ipd_model,
-            extrapolate=self.extrapolate,
-        )
-
-        wavelength = freq.to(u.nm, equivalencies=u.spectral()).value
-        if mie_scattering_model is None:
-            logging.info('Started mie scattering model calculations')
-            mie_scattering_model = MieScatteringModel.train(wavelength)
-
-        # Get model parameters, some of which have been interpolated to the given
-        # frequency or bandpass.
-        logging.info('Started model parameters calculations')
-        source_parameters = SOURCE_PARAMS_MAPPING[type(self._ipd_model)](
-            bandpass, self._ipd_model, keep_freq_elems=True
-        )
-
-        logging.info('Started observer position calculations')
-        observer_position, earth_position = get_obs_and_earth_positions(
-            obs=obs, obs_time=obs_time, obs_pos=obs_pos
-        )
-
-        # Get the integration limits for each zodiacal component (which may be
-        # different or the same depending on the model) along all line of sights.
-        logging.info('Started line of sight calculations')
-        start, stop = get_line_of_sight_start_and_stop_distances(
-            components=self._ipd_model.comps.keys(),
-            unit_vectors=unit_vectors,
-            obs_pos=observer_position,
-        )
-
-        logging.info('Started density partials calculations')
-        density_partials = construct_density_partials_comps(
-            comps=self._ipd_model.comps,
-            dynamic_params={"X_earth": earth_position},
-        )
-
-        # Make table of pre-computed bandpass integrated blackbody emission.
-        bandpass_interpolatation_table = get_bandpass_interpolation_table(bandpass)
-
-        logging.info('Started common integrand calculations')
-        common_integrand = partial(
-            kelsall_optical_depth,
-            X_obs=observer_position,
-            bp_interpolation_table=bandpass_interpolatation_table,
-            mie_scattering_model=mie_scattering_model,
-            wavelength=wavelength,
-            **source_parameters["common"],
-        )
-
-        if self.parallel:
-            logging.info('Started parallel emission calculations')
-            n_proc = multiprocessing.cpu_count() if self.n_proc is None else self.n_proc
-
-            unit_vector_chunks = np.array_split(unit_vectors, n_proc, axis=-1)
-            integrated_comp_emission = np.zeros(
-                (len(self._ipd_model.comps), unit_vectors.shape[1], len(freq))
-            )
-            with multiprocessing.get_context(SYS_PROC_START_METHOD).Pool(
-                processes=n_proc
-            ) as pool:
-                for idx, comp_label in enumerate(self._ipd_model.comps.keys()):
-                    stop_chunks = np.array_split(stop[comp_label], n_proc, axis=-1)
-                    if start[comp_label].size == 1:
-                        start_chunks = [start[comp_label]] * n_proc
-                    else:
-                        start_chunks = np.array_split(
-                            start[comp_label], n_proc, axis=-1
-                        )
-                    comp_integrands = [
-                        partial(
-                            common_integrand,
-                            u_los=np.expand_dims(unit_vectors, axis=-1),
-                            start=np.expand_dims(start, axis=-1),
-                            stop=np.expand_dims(stop, axis=-1),
-                            get_density_function=density_partials[comp_label],
-                            **source_parameters[comp_label],
-                        )
-                        for unit_vectors, start, stop in zip(
-                            unit_vector_chunks, start_chunks, stop_chunks
-                        )
-                    ]
-
-                    proc_chunks = [
-                        pool.apply_async(
-                            _integrate_gauss_quad,
-                            args=(comp_integrand, *self._gauss_points_and_weights),
-                        )
-                        for comp_integrand in comp_integrands
-                    ]
-
-                    integrated_comp_emission[idx] += (
-                        np.concatenate([result.get() for result in proc_chunks])
-                        * 0.5
-                        * (stop[comp_label] - start[comp_label])[..., None]
-                    )
-
-        else:
-            logging.info('Started serial emission calculations')
-            integrated_comp_emission = np.zeros(
-                (len(self._ipd_model.comps), unit_vectors.shape[1], len(freq))
-            )
-            unit_vectors_expanded = np.expand_dims(unit_vectors, axis=-1)
-
-            for idx, comp_label in enumerate(self._ipd_model.comps.keys()):
-                comp_integrand = partial(
-                    common_integrand,
-                    u_los=unit_vectors_expanded,
-                    start=np.expand_dims(start[comp_label], axis=-1),
-                    stop=np.expand_dims(stop[comp_label], axis=-1),
-                    get_density_function=density_partials[comp_label],
-                    **source_parameters[comp_label],
-                )
-
-                integrated_comp_emission[idx] = (
-                    _integrate_gauss_quad(
-                        comp_integrand, *self._gauss_points_and_weights
-                    )
-                    * 0.5
-                    * (stop[comp_label] - start[comp_label])[:, None]
-                )
-
-        logging.info('Started emission binning')
-        optical_depth = np.zeros(
-            (
-                len(self._ipd_model.comps),
-                hp.nside2npix(nside) if binned else indicies.size,
-                len(freq),
-            )
-        )
-        if binned:
-            optical_depth[:, pixels] = integrated_comp_emission
-        else:
-            optical_depth = integrated_comp_emission[:, indicies]
-
-        if self.solar_cut is not None:
-            ang_dist = hp.rotator.angdist(-observer_position.flatten(), unit_vectors)
-            solar_mask = ang_dist < self.solar_cut.value
-            if binned and pixels is not None:
-                optical_depth[:, pixels[solar_mask]] = self.solar_cut_fill_value
-            else:
-                optical_depth[:, solar_mask[indicies]] = self.solar_cut_fill_value
-
-        optical_depth = u.Quantity(optical_depth)
-
-        logging.info('Started polarization calculations')
-        if not return_comps:
-            optical_depth = optical_depth.sum(axis=0)
-        return optical_depth
 
     def __repr__(self) -> str:
         repr_str = f"{self.__class__.__name__}("

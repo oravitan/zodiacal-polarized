@@ -44,8 +44,6 @@ def kelsall(
     phase_angs: list[np.float64],
     solar_irradiance: np.float64 | list[np.float64],
     bp_interpolation_table: npt.NDArray[np.float64],
-    mie_scattering_model: MieScatteringModel,
-    wavelength: np.float64,
 ) -> npt.NDArray[np.float64]:
     """Kelsall uses common line of sight grid from obs to 5.2 AU."""
     # Convert the quadrature range from [-1, 1] to the true ecliptic positions
@@ -61,9 +59,6 @@ def kelsall(
     unpolarized_stokes = get_unpolarized_stokes_vector()
     emission = np.einsum('...j,jkw->...kw', emission[..., None], unpolarized_stokes)
 
-    # kelsall_wavelength = 1250  # nm
-    # extinction_sca = ((kelsall_wavelength / wavelength) ** 4) * get_density_function(X_helio) * albedo[None,:]
-    # extinction_abs = (kelsall_wavelength / wavelength) * get_density_function(X_helio) * (1-albedo[None, :])
     extinction_sca = get_density_function(X_helio) * albedo[None,:]
     extinction_abs = get_density_function(X_helio) * (1-albedo[None, :])
     emission = emission * extinction_abs[..., None, None]

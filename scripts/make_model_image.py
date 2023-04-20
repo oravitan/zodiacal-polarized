@@ -1,9 +1,11 @@
+"""
+Script to make a model image of the sky, showcasing the complete Zodipol model.
+"""
 import logging
 import numpy as np
 import healpy as hp
 import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
-from astropy.coordinates import CartesianRepresentation
 
 from zodipol.utils.argparser import ArgParser
 from zodipol.zodipol import Zodipol
@@ -25,20 +27,20 @@ if __name__ == '__main__':
                                                                         n_realizations=parser["n_realizations"],
                                                                    add_noise=False)
     skymap = camera_intensity_full_color[..., 0]
-    # skymap = zodipol.planetary.make_planets_map(nside, parser["obs_time"], zodipol.wavelength)[:, [1,4,8]]
 
+    # interpolate image
     nside = hp.npix2nside(skymap.shape[0])
     pixel_arr = np.arange(hp.nside2npix(nside))
     theta, phi = hp.pix2ang(nside, pixel_arr)
     T, P = np.meshgrid(np.linspace(0, np.pi, 1000), np.linspace(-np.pi, np.pi, 1000))
     interp = griddata((theta, phi), skymap, (np.mod(T, np.pi), np.mod(P, 2 * np.pi)), method='nearest')
 
+    # add venus location
     venus = zodipol.planetary._get_planet_location('venus', parser["obs_time"])
     venus_phi, venus_theta = venus.lon.to('rad').value, venus.lat.to('rad').value
     venus_phi = np.mod(venus_phi, np.pi) - np.pi * (venus_phi // np.pi)
-    # venus_pix = hp.vec2pix(nside, *list(-venus.xyz.value))
-    # venus_theta, venus_phi = hp.pix2ang(nside, venus_pix)
 
+    # organize interpolate image scale
     vmin = np.nanmin(interp)
     vmax = np.nanmax(interp)
     interp_norm = (interp - vmin) / (vmax - vmin)
@@ -46,6 +48,7 @@ if __name__ == '__main__':
     interp_norm = np.clip(interp_norm, 0, 1)
     interp_norm = interp_norm ** 0.3
 
+    # plot the image
     fig = plt.figure(figsize=(10, 8))
     ax = plt.subplot(projection='mollweide')
     ax.set_xticks([])
@@ -66,5 +69,3 @@ if __name__ == '__main__':
     fig.tight_layout()
     plt.savefig('outputs/model_image.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0.1)
     plt.show()
-
-    pass

@@ -11,6 +11,7 @@ from zodipol.zodipy_local.zodipy._bandpass import Bandpass
 from zodipol.zodipy_local.zodipy._constants import SPECIFIC_INTENSITY_UNITS
 from zodipol.zodipy_local.zodipy._ipd_comps import ComponentLabel
 from zodipol.zodipy_local.zodipy._ipd_model import RRM, InterplanetaryDustModel, Kelsall
+from zodipol.zodipy_local.zodipy._source_funcs import get_phase_function
 
 InterplanetaryDustModelT = TypeVar(
     "InterplanetaryDustModelT", bound=InterplanetaryDustModel
