@@ -53,11 +53,11 @@ def get_initial_parameters(obs, parser, zodipol):
 
     polarizance, _ = np.meshgrid(np.linspace(0.7, 0.95, parser["resolution"][0]), np.arange(parser["resolution"][1]),
                        indexing='ij')
-    polarizance_real = polarizance.reshape((-1, 1, 1))
+    polarizance_real = polarizance.reshape((-1, 1, 1)).repeat(parser["n_polarization_ang"], axis=-1)
 
     obs_orig = [zodipol.make_camera_images(o, polarizance_real, polarization_angle_real, n_realizations=parser["n_realizations"], add_noise=True) for o in obs_biref]
     images_orig = zodipol.post_process_images(np.stack(obs_orig, axis=-1))
-    return obs, images_orig, polarizance_real, polarization_angle_spatial_diff.reshape((-1)), mueller_truth
+    return obs, images_orig, polarizance_real.reshape(-1, parser["n_polarization_ang"]), polarization_angle_spatial_diff.reshape((-1)), mueller_truth
 
 
 def cost_callback(calib: Calibration, p, eta, mueller):
@@ -129,10 +129,10 @@ if __name__ == '__main__':
 
     # plot comparison of P,eta estimated vs true
     fig, ax = plt.subplots(1, 2, figsize=(5, 3), subplot_kw={'xticks': [], 'yticks': []})
-    c1 = ax[0].imshow(polarizance_real.reshape((parser["resolution"][0], parser["resolution"][1])), vmin=0.7, vmax=1)
+    c1 = ax[0].imshow(polarizance_real[:, 0].reshape((parser["resolution"][0], parser["resolution"][1])), vmin=0.7, vmax=1)
     ax[0].set_title("$P^{true}$")
     plt.colorbar(c1, ax=ax[0])
-    c2 = ax[1].imshow(p.reshape((parser["resolution"][0], parser["resolution"][1])), vmin=0.7, vmax=1)
+    c2 = ax[1].imshow(p[:, 0].reshape((parser["resolution"][0], parser["resolution"][1])), vmin=0.7, vmax=1)
     ax[1].set_title("$\hat{P}$")
     plt.colorbar(c2, ax=ax[1])
     plt.savefig("outputs/calib_p_eta.pdf", format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)

@@ -34,7 +34,7 @@ class BaseCalibration:
         init = (init if init is not None else {})
 
         # initialize the parameters
-        self.p = np.ones(self.parser["resolution"]).reshape((-1))
+        self.p = np.ones(self.parser["resolution"]).reshape(-1, 1).repeat(self.parser["n_polarization_ang"], axis=-1)
         self.eta = np.zeros(self.parser["resolution"]).reshape((-1))
         delta = self.zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)
         alpha = self.zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)
@@ -53,7 +53,7 @@ class BaseCalibration:
         Calculate the forward model of the calibration.
         This turns a stokes object into an image.
         """
-        p = self.p.reshape((-1, 1))
+        p = self.p.reshape((-1, self.parser["n_polarization_ang"]))
         eta = self.eta.reshape((-1, 1)) + self.parser["polarization_angle"][None, :]
         biref_obs = self.zodipol.imager.apply_birefringence(obs, self.biref)
         img_model = IQU_to_image(biref_obs.I, biref_obs.Q, biref_obs.U, p, eta)
@@ -105,13 +105,23 @@ class BaseCalibration:
         Estimate the polarization of every pixel.
         """
         intensity = images.value
+
         mueller = self.biref
         stokes = np.stack([o.to_numpy(ndims=3) for o in self.obs], axis=-2).value
+        stokes_tag = np.einsum('...ij,...jk->...ik', stokes, mueller)
 
-        F_P = np.einsum('...ij,...jk->...ik', stokes, mueller)
-        pseudo_inv = np.linalg.pinv(F_P)
-        M_p_eta_inv = np.einsum('...ij,...kj->...ik', pseudo_inv, intensity)
-        p_est = (M_p_eta_inv[:, 1, 0] + M_p_eta_inv[:, 2, 1] - M_p_eta_inv[:, 1, 2] - M_p_eta_inv[:, 2, 3]) / 2
+        stokes_I, stokes_QU = stokes_tag[..., 0], stokes_tag[..., 1:]
+        # V0 = 0.5 * np.concatenate((np.eye(2, 2), -np.eye(2, 2)))
+        intensity_I = np.moveaxis(intensity, -2, -1) - 0.5 * stokes_I[..., None]
+        intensity_I = intensity_I.reshape((intensity_I.shape[0], -1))
+
+        # F_P = np.einsum('ijk,...wk->...ijw', stokes_QU.repeat(4, axis=1), V0)
+        stokes_eye = np.einsum('...i,ij->...ij', stokes_QU, np.eye(2))
+        S_P = np.kron(np.diag((1, -1)), stokes_eye)
+        S_P = 0.5 * S_P.reshape(intensity_I.shape + (4,))
+
+        pseudo_inv = np.linalg.pinv(S_P)
+        p_est = np.einsum('...ij,...j->...i', pseudo_inv, intensity_I)
 
         p_est = np.clip(p_est, 0, 1)
         self.p = p_est
@@ -121,28 +131,27 @@ class BaseCalibration:
         Estimate the birefringence of every pixel.
         """
         intensity = images.value.swapaxes(-1, -2)
-        p = self.p[:, None]
+        p = self.p  #[:, None]
         angles = self.eta[:, None] + self.parser["polarization_angle"]
 
         # preparation
         stokes = np.stack([o.to_numpy(ndims=3) for o in self.obs], axis=-1).value
-        angles_matrix = 0.5 * np.stack((np.ones_like(angles), p * np.cos(2 * angles), p * np.sin(2 * angles)), axis=-1)
+        stokes_I, stokes_QU = stokes[:, 0, :], stokes[:, 1:, :]
+        intensity_I = intensity - 0.5 * stokes_I[..., None]
 
-        stokes_pseudo_inv = np.linalg.pinv(stokes.swapaxes(-1,-2))
+        angles_matrix = 0.5 * np.stack((p * np.cos(2 * angles), p * np.sin(2 * angles)), axis=-1)
+
+        stokes_pseudo_inv = np.linalg.pinv(stokes_QU.swapaxes(-1,-2))
         angles_pseudo_inv = np.linalg.pinv(angles_matrix.swapaxes(-1,-2))
 
-        biref = np.einsum('...ij,...jk,...kw->...iw', stokes_pseudo_inv, intensity, angles_pseudo_inv)
+        biref = np.einsum('...ij,...jk,...kw->...iw', stokes_pseudo_inv, intensity_I, angles_pseudo_inv)
 
-        assert np.sqrt(np.median((biref[:, 0, 0] - 1)**2)) < 0.05, 'biref[0, 0] is not 1'
-
-        # normalize biref
-        W, V = np.linalg.eig(biref[:, 1:, 1:])
-        eig_normalization = np.max((np.ones(biref.shape[:1]), np.max(W.real, axis=-1)),axis=0)[:, None, None]
-        biref[..., 1:, 1:] = biref[..., 1:, 1:] / eig_normalization
+        # assert np.sqrt(np.median((biref[:, 0, 0] - 1)**2)) < 0.05, 'biref[0, 0] is not 1'
 
         if normalize_eigs:
-            W, V = np.linalg.eig(np.nan_to_num(biref[..., 1:, 1:], np.nanmean(biref[..., 1:, 1:])))
-            biref[..., 1:, 1:] = biref[..., 1:, 1:] / np.max((np.ones(biref.shape[:1]), np.max(abs(W.real), axis=-1)), axis=0)[:, None, None]
+            W, V = np.linalg.eig(biref)
+            eig_normalization = np.max((np.ones(biref.shape[:1]), np.max(W.real, axis=-1)), axis=0)[:, None, None]
+            biref = biref / eig_normalization
 
         # smooth biref
         if kernel_size is not None:
@@ -154,6 +163,6 @@ class BaseCalibration:
 
         # set necessary values of biref
         # biref_fixed = np.clip(biref, -1, 1).reshape(biref.shape)
-        biref[:, 0, 0] = 1  # force to avoid numerical errors
-        biref[:, 0, 1] = biref[:, 1, 0] = biref[:, 0, 2] = biref[:, 2, 0] = 0
-        self.biref = biref
+        biref_full = np.eye(3)[None, :].repeat(self.biref.shape[0], axis=0)
+        biref_full[..., 1:, 1:] = biref
+        self.biref = biref_full
