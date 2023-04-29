@@ -21,6 +21,21 @@ def cost_callback(calib: Calibration, p, eta, mueller):
     return p_cost, mueller_cost
 
 
+def calibration(n_rotations, n_itr, zodipol, parser):
+    obs, rotation_list = get_observations(n_rotations, zodipol, parser)
+    obs, images_orig, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs, parser, zodipol)
+    true_values = {'images': images_orig, 'p': polarizance_real, 'eta': polarization_angle_real, 'biref': mueller_truth}
+    obs_comb = zodipol.combine_observations(obs, polarizance=polarizance_real.squeeze(), polarization_angle=polarization_angle_real)
+    callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
+
+    calib = Calibration(obs_comb, zodipol, parser)
+    init = {'eta': polarization_angle_real}
+    p, eta, biref, cost, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, callback=callback_partial, init=init, normalize_eigs=True)
+    p_cost, mueller_cost = list(zip(*itr_cost))
+    est_values = {'p': p, 'eta': eta, 'biref': biref}
+    return true_values, est_values, cost, p_cost, mueller_cost
+
+
 if __name__ == '__main__':
     # set params
     logging.info(f'Started run.')
@@ -32,19 +47,9 @@ if __name__ == '__main__':
 
     n_rotations = 20
     n_itr = 20
-    obs, rotation_list = get_observations(n_rotations, zodipol, parser)
-
-    obs, images_orig, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs, parser, zodipol)
-    obs_comb = zodipol.combine_observations(obs, polarizance=polarizance_real.squeeze(), polarization_angle=polarization_angle_real)
-    callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
-
-    calib = Calibration(obs_comb, zodipol, parser)
-    init = {'eta': polarization_angle_real}
-    p, eta, biref, cost, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, callback=callback_partial, init=init, normalize_eigs=True)
-    p_cost, mueller_cost = list(zip(*itr_cost))
-
+    true_values, est_values, cost, p_cost, mueller_cost = calibration(n_rotations, n_itr, zodipol, parser)
     plot_cost_itr(cost, p_cost, mueller_cost, saveto="outputs/calib_cost_vs_iteration.pdf")
-    plot_deviation_comp(parser, polarizance_real[:, 0], p[:, 0], saveto="outputs/calib_mueller_estimation.pdf")
+    plot_deviation_comp(parser, true_values["p"][:, 0], est_values["p"][:, 0], saveto="outputs/calib_mueller_estimation.pdf")
 
     A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
 
@@ -52,21 +57,9 @@ if __name__ == '__main__':
     n_rotations_list = [4, 6, 10, 14, 18, 22, 26, 30]
     res_cost = []
     for n_rotations in n_rotations_list:
-        obs, rotation_list = get_observations(n_rotations, zodipol, parser)
-        obs, images_orig, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs, parser,
-                                                                                                            zodipol)
-        obs_comb = zodipol.combine_observations(obs, polarizance=polarizance_real.squeeze(),
-                                                polarization_angle=polarization_angle_real)
-        callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real,
-                                   mueller=mueller_truth)
-
-        calib = Calibration(obs_comb, zodipol, parser)
-        init = {'eta': polarization_angle_real}
-        p, eta, biref, clbk_itr, itr_cost = calib.calibrate(images_orig, n_itr=n_itr,
-                                                            callback=callback_partial, init=init)
-        p_cost, mueller_cost = list(zip(*itr_cost))
-        mean_num_electrons = np.mean((images_orig / A_gamma).to('').value)
-        res_cost.append((clbk_itr[-1] / mean_num_electrons, p_cost[-1], mueller_cost[-1]))
+        true_values, est_values, cost, p_cost, mueller_cost = calibration(n_rotations, n_itr, zodipol, parser)
+        mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
+        res_cost.append((cost[-1] / mean_num_electrons, p_cost[-1], mueller_cost[-1]))
     rot_intensity_mse, rot_p_mse, rot_biref_mse = list(zip(*res_cost))
     plot_res_comp_plot(n_rotations_list, rot_p_mse, rot_biref_mse, saveto="outputs/calib_mse_n_rotations.pdf", xlabel="Number of observations")
 
@@ -77,17 +70,9 @@ if __name__ == '__main__':
     res_cost = []
     for exposure_time in exposure_time_list:
         zodipol.imager.exposure_time = exposure_time * u.s
-        obs, rotation_list = get_observations(n_rotations, zodipol, parser)
-        obs, images_orig, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs, parser, zodipol)
-        obs_comb = zodipol.combine_observations(obs, polarizance=polarizance_real.squeeze(), polarization_angle=polarization_angle_real)
-        callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
-
-        calib = Calibration(obs_comb, zodipol, parser)
-        init = {'eta': polarization_angle_real}
-        p, eta, biref, clbk_itr, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, callback=callback_partial,init=init)
-        p_cost, mueller_cost = list(zip(*itr_cost))
-        mean_num_electrons = np.mean((images_orig / A_gamma).to('').value)
-        res_cost.append((clbk_itr[-1]/mean_num_electrons, p_cost[-1], mueller_cost[-1]))
+        true_values, est_values, cost, p_cost, mueller_cost = calibration(n_rotations, n_itr, zodipol, parser)
+        mean_num_electrons = np.mean((true_values['images'] / A_gamma).to('').value)
+        res_cost.append((cost[-1]/mean_num_electrons, p_cost[-1], mueller_cost[-1]))
     ex_intensity_mse, ex_p_mse, ex_biref_mse = list(zip(*res_cost))
     plot_res_comp_plot(exposure_time_list, ex_p_mse, ex_biref_mse, saveto="outputs/calib_mse_exposure_time.pdf", xlabel="$\Delta t \;(s)$")
 
