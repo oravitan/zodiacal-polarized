@@ -120,12 +120,12 @@ class Zodipol:
         imager_response = self.get_imager_response(color=color)
         obs_res = []
         for obs in obs_list:  # take multiple relatizations of the projection
-            binned_emission_real = IQU_to_image(obs.I, obs.Q, obs.U, polarizance[:, None, None], polarization_angle[..., None, :])
+            binned_emission_real = IQU_to_image(obs.I, obs.Q, obs.U, polarizance[:, None, :], polarization_angle[..., None, :])
             n_electrons_real = self.imager.intensity_to_number_of_electrons(binned_emission_real, frequency=self.frequency, weights=imager_response)
             camera_intensity_real = self.imager.number_of_electrons_to_intensity(n_electrons_real, self.frequency, imager_response)
             if fillna is not None:
                 camera_intensity_real = np.nan_to_num(camera_intensity_real, nan=fillna * camera_intensity_real.unit)
-            obs_combine = Observation.from_image(camera_intensity_real, polarizance[:, None], polarization_angle,
+            obs_combine = Observation.from_image(camera_intensity_real, polarizance, polarization_angle,
                                                  theta=obs.theta, phi=obs.phi, roll=obs.roll)
             obs_res.append(obs_combine)
         return obs_res
