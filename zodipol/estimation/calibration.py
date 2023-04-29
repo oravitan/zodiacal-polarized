@@ -17,6 +17,6 @@ class Calibration(BaseCalibration):
         super().__init__(zodipol, parser)
         self.obs = obs
 
-    def _calibrate_itr(self, images_orig: u.Quantity, mode="all") -> None:
-        self.estimate_polarizance(images_orig)
-        self.estimate_birefringence(images_orig)
+    def _calibrate_itr(self, images_orig: u.Quantity, mode="all", **kwargs) -> None:
+        self.estimate_polarizance(images_orig, **kwargs)
+        self.estimate_birefringence(images_orig, **kwargs)

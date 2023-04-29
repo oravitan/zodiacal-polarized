@@ -50,11 +50,12 @@ class SelfCalibration(BaseCalibration):
         """
         Get the properties of the calibration.
         """
-        p_nan = np.where(self.nan_mask, np.nan, self.p)
-        eta_nan = np.where(self.nan_mask, np.nan, self.eta)
-        biref = self.biref.copy()
-        biref[self.nan_mask, ...] = np.nan
-        return p_nan, eta_nan, biref
+        res = []
+        for ii in [self.p, self.eta, self.biref]:
+            ii_copy = ii.copy()
+            ii_copy[self.nan_mask, ...] = np.nan
+            res.append(ii_copy)
+        return tuple(res)
 
     # Stokes vectors estimation
     def estimate_observations(self, images):
@@ -63,7 +64,7 @@ class SelfCalibration(BaseCalibration):
         """
         rotation_list = self.rotation_list
         interp_images_res = self.aligned_images
-        p = align_images(self.zodipol, self.parser, self.p[:, None].repeat(self.nobs, axis=-1), rotation_list, invert=True)[..., None, :].repeat(self.parser["n_polarization_ang"], axis=-2)
+        p = align_images(self.zodipol, self.parser, self.p.repeat(self.nobs, axis=-1), rotation_list, invert=True)[..., None, :].repeat(self.parser["n_polarization_ang"], axis=-2)
         eta = align_images(self.zodipol, self.parser, self.eta[:, None, None].repeat(self.nobs, axis=-1), rotation_list, invert=True) + self.parser["polarization_angle"][:, None]
         mueller = self.biref
         mueller_rot = mueller[..., None].repeat(self.nobs, axis=-1)

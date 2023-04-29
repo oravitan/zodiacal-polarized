@@ -69,7 +69,7 @@ class BaseCalibration:
         mse_electrons = (np.sqrt(mse) / A_gamma).si.value.squeeze() ** 2
         return mse_electrons
 
-    def calibrate(self, images_orig, n_itr=5, disable=False, callback=None, init=None) -> tuple:
+    def calibrate(self, images_orig, n_itr=5, disable=False, callback=None, init=None, **kwargs) -> tuple:
         """
         Calibrate the imager using the images.
         :param images_orig: The original images.
@@ -85,7 +85,7 @@ class BaseCalibration:
             if callback is not None:
                 itr_callback.append(callback(self))
         for _ in tqdm(range(n_itr), disable=disable):
-            self._calibrate_itr(images_orig)
+            self._calibrate_itr(images_orig, **kwargs)
             itr_cost.append(self.get_mse(images_orig))
             if callback is not None:
                 itr_callback.append(callback(self))
@@ -94,13 +94,13 @@ class BaseCalibration:
         return self.p, self.eta, self.biref, itr_cost
 
     @abc.abstractmethod
-    def _calibrate_itr(self, images: u.Quantity) -> None:
+    def _calibrate_itr(self, images: u.Quantity, **kwargs) -> None:
         """
         Perform one iteration of the calibration.
         """
         pass
 
-    def estimate_polarizance(self, images: u.Quantity) -> None:
+    def estimate_polarizance(self, images: u.Quantity, **kwargs) -> None:
         """
         Estimate the polarization of every pixel.
         """
@@ -111,22 +111,22 @@ class BaseCalibration:
         stokes_tag = np.einsum('...ij,...jk->...ik', stokes, mueller)
 
         stokes_I, stokes_QU = stokes_tag[..., 0], stokes_tag[..., 1:]
-        # V0 = 0.5 * np.concatenate((np.eye(2, 2), -np.eye(2, 2)))
         intensity_I = np.moveaxis(intensity, -2, -1) - 0.5 * stokes_I[..., None]
         intensity_I = intensity_I.reshape((intensity_I.shape[0], -1))
 
-        # F_P = np.einsum('ijk,...wk->...ijw', stokes_QU.repeat(4, axis=1), V0)
-        stokes_eye = np.einsum('...i,ij->...ij', stokes_QU, np.eye(2))
-        S_P = np.kron(np.diag((1, -1)), stokes_eye)
-        S_P = 0.5 * S_P.reshape(intensity_I.shape + (4,))
+        # stokes_eye = np.einsum('...i,ij->...ij', stokes_QU, np.eye(2))
+        # S_P = np.kron(np.diag((1, -1)), stokes_eye)
+        # S_P = 0.5 * S_P.reshape(intensity_I.shape + (4,))
+        S_P = 0.5 * np.concatenate((stokes_QU, -stokes_QU), axis=-1).reshape(intensity_I.shape)[..., None]
 
         pseudo_inv = np.linalg.pinv(S_P)
         p_est = np.einsum('...ij,...j->...i', pseudo_inv, intensity_I)
 
+        p_est = p_est.repeat(4, axis=-1)
         p_est = np.clip(p_est, 0, 1)
         self.p = p_est
 
-    def estimate_birefringence(self, images: u.Quantity, kernel_size: int = None, normalize_eigs: bool = False) -> None:
+    def estimate_birefringence(self, images: u.Quantity, kernel_size: int = None, normalize_eigs: bool = False, **kwargs) -> None:
         """
         Estimate the birefringence of every pixel.
         """
@@ -152,6 +152,7 @@ class BaseCalibration:
             W, V = np.linalg.eig(biref)
             eig_normalization = np.max((np.ones(biref.shape[:1]), np.max(W.real, axis=-1)), axis=0)[:, None, None]
             biref = biref / eig_normalization
+        biref = np.clip(biref, -1, 1)
 
         # smooth biref
         if kernel_size is not None:

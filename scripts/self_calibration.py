@@ -12,25 +12,7 @@ from functools import partial
 # import the necessary modules
 from zodipol.estimation.self_calibration import SelfCalibration
 from zodipol.utils.argparser import ArgParser
-from zodipol.zodipol import Zodipol
-
-
-def get_measurements(zodipol, parser, n_rotations=40):
-    rotations_file_path = 'saved_models/self_calibration_40.pkl'
-    rotation_list = np.linspace(0, 360, n_rotations, endpoint=False)
-    if os.path.isfile(rotations_file_path):
-        # saved rotations pickle file exists
-        with open(rotations_file_path, 'rb') as f:
-            obs_rot = pkl.load(f)
-        ind_list = np.linspace(0, len(obs_rot), n_rotations, endpoint=False, dtype=int)
-        rotation_list = np.linspace(0, 360, len(obs_rot), endpoint=False)[ind_list]
-        obs_rot = [obs_rot[ii] for ii in ind_list]
-    else:
-        obs_rot = [zodipol.create_observation(theta=parser["direction"][0], phi=parser["direction"][1], roll=t * u.deg,
-                                              lonlat=False, new_isl=parser["new_isl"]) for t in tqdm(rotation_list)]
-        with open(rotations_file_path, 'wb') as f:
-            pkl.dump(obs_rot, f)
-    return obs_rot, rotation_list
+from zodipol.zodipol import Zodipol, get_observations, get_initial_parameters
 
 
 def get_iteration_cost(polarizance_real, polarizance_est_reshape_nan, polarization_angle_real, polarization_ang_full_nan):
@@ -47,7 +29,7 @@ def get_iteration_cost(polarizance_real, polarizance_est_reshape_nan, polarizati
 
 def generate_observations(zodipol, parser, n_rotations=40):
     motion_blur = 360 / n_rotations / zodipol.imager.exposure_time.value * u.deg
-    obs_rot, rotation_list = get_measurements(zodipol, parser, n_rotations=n_rotations)
+    obs_rot, rotation_list = get_observations(n_rotations, zodipol, parser)
     obs_rot = [o.add_radial_blur(motion_blur, list(parser["resolution"])) for o in obs_rot]
     obs_rot = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"]) for o in obs_rot]
 
@@ -80,8 +62,7 @@ def generate_observations(zodipol, parser, n_rotations=40):
     return obs_rot, images_res, rotation_list, polarizance_real.squeeze(), pa_ts_diff.squeeze(), delta, alpha
 
 
-def perform_estimation(zodipol, parser, rotation_list, images_res_flat, polarizance_real, polarization_angle_real, delta, alpha, n_itr=10):
-    mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, alpha)
+def perform_estimation(zodipol, parser, rotation_list, images_res_flat, polarizance_real, polarization_angle_real, mueller_truth, n_itr=10):
     theta0, phi0 = zodipol.create_sky_coords(theta=parser["direction"][0], phi=parser["direction"][1], roll=0 * u.deg, resolution=parser["resolution"])
     callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
     self_calib = SelfCalibration(images_res_flat, rotation_list, zodipol, parser, theta=theta0, phi=phi0)
@@ -195,11 +176,12 @@ def main():
 
     # generate observations
     n_rotations = 20
-    obs_truth, images_res, rotation_list, polarizance_real, polarization_angle_real, delta, alpha = generate_observations(zodipol, parser, n_rotations=n_rotations)
+    obs_truth, rotation_list = get_observations(n_rotations, zodipol, parser)
+    obs_truth, images_res, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs_truth, parser, zodipol)
     images_res_flat = images_res.reshape((np.prod(parser["resolution"]), parser["n_polarization_ang"], n_rotations))
     images_res_flat = zodipol.post_process_images(images_res_flat)
     cost_itr, p_hat, eta_hat, biref, clbk_itr = perform_estimation(zodipol, parser, rotation_list, images_res_flat,
-                                                  polarizance_real, polarization_angle_real, delta, alpha, n_itr=n_itr)
+                                                  polarizance_real, polarization_angle_real, mueller_truth, n_itr=n_itr)
     p_cost, mueller_cost = list(zip(*clbk_itr))
     plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto='outputs/self_calibration_cost_itr.pdf')
     plot_deviation_comp(parser, polarizance_real, p_hat, set_colors=True, saveto='outputs/self_calibration_polarizance_est.pdf')
