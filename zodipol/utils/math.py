@@ -2,6 +2,7 @@ import numpy as np
 import transformations as transf
 import astropy.units as u
 
+from functools import lru_cache
 from scipy.interpolate import RegularGridInterpolator
 
 xaxis, yaxis, zaxis = [1, 0, 0], [0, 1, 0], [0, 0, 1]
@@ -85,20 +86,37 @@ def get_rotated_image(zodipol, parser, images, rotation_to, fill_value=0, method
     :param fill_value: The value to fill non-intersecting pixels.
     :param method: The interpolation method.
     """
+    @lru_cache
+    def get_cached_coords(theta, phi, roll, resolution):
+        return zodipol.create_sky_coords(theta=theta, phi=phi, roll=roll, resolution=resolution)
+
+    @lru_cache()
+    def get_rotation_coords(parser, rotation_to):
+        theta_from, phi_from = get_cached_coords(*parser["direction"], 0 * u.deg, tuple(parser["resolution"]))
+        theta_to, phi_to = get_cached_coords(*parser["direction"], rotation_to * u.deg, tuple(parser["resolution"]))
+
+        vec_from = ang2vec(theta_from, phi_from)
+        vec_to = ang2vec(theta_to, phi_to)
+
+        dx = (vec_from[:, 0].max() - vec_from[:, 0].min()) / parser["resolution"][1]
+        dy = (vec_from[:, 1].max() - vec_from[:, 1].min()) / parser["resolution"][0]
+        x_ind = np.round((vec_to[:, 0] - vec_from[:, 0].min()) / dx).astype(int)
+        y_ind = np.round((vec_to[:, 1] - vec_from[:, 1].min()) / dy).astype(int)
+        index_mask = (x_ind >= 0) & (x_ind < parser["resolution"][1]) & (y_ind >= 0) & (y_ind < parser["resolution"][0])
+        return x_ind, y_ind, index_mask
+
     images = np.nan_to_num(images, nan=fill_value)  # fill nans
     if rotation_to == 0:  # avoid interpolation issues
         return images
-    theta_from, phi_from = zodipol.create_sky_coords(theta=parser["direction"][0],
-                                                          phi=parser["direction"][1],
-                                                          roll=0 * u.deg, resolution=parser["resolution"])
-    vec_from = ang2vec(theta_from, phi_from)
-    x = np.linspace(vec_from[:, 0].min(), vec_from[:, 0].max(), parser["resolution"][1])
-    y = np.linspace(vec_from[:, 1].min(), vec_from[:, 1].max(), parser["resolution"][0])
-    images_resh = images.reshape(parser["resolution"] + list(images.shape[1:]))
-    grid_interp = RegularGridInterpolator((y, x), images_resh, bounds_error=False, fill_value=fill_value, method=method)
 
-    theta_to, phi_to = zodipol.create_sky_coords(theta=parser["direction"][0], phi=parser["direction"][1],
-                                                      roll=rotation_to * u.deg, resolution=parser["resolution"])
-    vec_to = ang2vec(theta_to, phi_to)
-    interp = grid_interp(list(zip(vec_to[:, 1], vec_to[:, 0])))
-    return interp
+    x_ind, y_ind, index_mask = get_rotation_coords(parser, rotation_to)
+
+    images_resh = images.reshape(parser["resolution"] + list(images.shape[1:]))
+    images_interp = np.full_like(images, fill_value)
+    images_interp[index_mask, ...] = images_resh[y_ind[index_mask], x_ind[index_mask], ...]
+    # images_interp_res = images_interp.reshape(images_resh.shape)
+    return images_interp
+
+    # grid_interp = RegularGridInterpolator((y, x), images_resh, bounds_error=False, fill_value=fill_value, method=method)
+    # interp = grid_interp(list(zip(vec_to[:, 1], vec_to[:, 0])))
+    # return interp

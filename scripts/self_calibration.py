@@ -6,7 +6,6 @@ import pickle as pkl
 import numpy as np
 import matplotlib.pyplot as plt
 import astropy.units as u
-from tqdm import tqdm
 from functools import partial
 
 # import the necessary modules
@@ -15,66 +14,19 @@ from zodipol.utils.argparser import ArgParser
 from zodipol.zodipol import Zodipol, get_observations, get_initial_parameters
 
 
-def get_iteration_cost(polarizance_real, polarizance_est_reshape_nan, polarization_angle_real, polarization_ang_full_nan):
-    p_pdiff = polarizance_real.squeeze()[:, 0, None] - polarizance_real.squeeze()
-    p_estdiff = polarizance_est_reshape_nan[:, 0, 0, None] - polarizance_est_reshape_nan[:, 0, :]
-
-    eta_pdiff = polarization_angle_real.squeeze()[:, 0, 0, None] - polarization_angle_real.squeeze()[:, 0, :]
-    eta_estdiff = polarization_ang_full_nan[:, 0, 0, None] - polarization_ang_full_nan[:, 0, :]
-
-    p_mse = np.nanmean((p_pdiff - p_estdiff)**2)
-    eta_mse = np.nanmean((eta_pdiff - eta_estdiff)**2)
-    return p_mse, eta_mse
-
-
-def generate_observations(zodipol, parser, n_rotations=40):
-    motion_blur = 360 / n_rotations / zodipol.imager.exposure_time.value * u.deg
-    obs_rot, rotation_list = get_observations(n_rotations, zodipol, parser)
-    obs_rot = [o.add_radial_blur(motion_blur, list(parser["resolution"])) for o in obs_rot]
-    obs_rot = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"]) for o in obs_rot]
-
-    # add birefringence
-    delta_val, phi_val = np.pi / 4, np.pi / 6
-    delta = zodipol.imager.get_birefringence_mat(delta_val, 'center', flat=True, inv=True)
-    alpha = zodipol.imager.get_birefringence_mat(phi_val, 'linear', flat=True, angle=-np.pi / 4, min=0)
-    mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, alpha)
-    obs_biref = [zodipol.imager.apply_birefringence(o, mueller_truth) for o in obs_rot]
-
-    # create satellite polarizance and angle of polarization variables
-    polarization_angle = parser["polarization_angle"]
-    _, polarization_angle_spatial_diff = np.meshgrid(np.arange(parser["resolution"][0]),
-                                                     np.deg2rad(np.linspace(-10, 10, parser["resolution"][1])),
-                                                     indexing='ij')
-
-    pa_ts_diff = np.zeros_like(polarization_angle_spatial_diff.flatten()[..., None])
-    polarization_angle_real = polarization_angle[None, :] + pa_ts_diff
-
-    polarizance, _ = np.meshgrid(np.linspace(-1, 0, parser["resolution"][0]), np.arange(parser["resolution"][1]),
-                                 indexing='ij')
-    polarizance_real = polarizance.reshape((len(obs_biref[0]), 1))
-    polarizance_real = 0.95 + 0.35 * polarizance_real
-
-    # create observations images
-    obs_orig = [zodipol.make_camera_images(obs_biref[ii], polarizance_real[..., None, :], polarization_angle_real[..., None, :],
-                                                 n_realizations=parser["n_realizations"], add_noise=True) for ii in range(n_rotations)]  #
-    images_orig = np.stack(obs_orig, axis=-1)
-    images_res = images_orig.reshape((parser["resolution"] + list(images_orig.shape[1:])))
-    return obs_rot, images_res, rotation_list, polarizance_real.squeeze(), pa_ts_diff.squeeze(), delta, alpha
-
-
 def perform_estimation(zodipol, parser, rotation_list, images_res_flat, polarizance_real, polarization_angle_real, mueller_truth, n_itr=10):
     theta0, phi0 = zodipol.create_sky_coords(theta=parser["direction"][0], phi=parser["direction"][1], roll=0 * u.deg, resolution=parser["resolution"])
     callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
     self_calib = SelfCalibration(images_res_flat, rotation_list, zodipol, parser, theta=theta0, phi=phi0)
     init_dict = {'eta': polarization_angle_real}
-    cost_itr, clbk_itr = self_calib.calibrate(images_res_flat, n_itr=n_itr, callback=callback_partial, init=init_dict)
+    _, _, _, cost_itr, clbk_itr = self_calib.calibrate(images_res_flat, n_itr=n_itr, callback=callback_partial, init=init_dict)
     p, eta, biref = self_calib.get_properties()
     return cost_itr, p, eta, biref, clbk_itr
 
 
 def cost_callback(calib: SelfCalibration, p, eta, mueller):
     cp, _, biref = calib.get_properties()
-    p_cost = np.nanmean((p - np.mean(p) - (cp - np.nanmean(cp))) ** 2)
+    p_cost = np.nanmean((p - cp) ** 2)
     mueller_cost = np.nanmean((mueller[..., 1:3, 1:3] - biref[..., 1:3, 1:3])**2)
     return p_cost, mueller_cost
 
@@ -184,7 +136,7 @@ def main():
                                                   polarizance_real, polarization_angle_real, mueller_truth, n_itr=n_itr)
     p_cost, mueller_cost = list(zip(*clbk_itr))
     plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto='outputs/self_calibration_cost_itr.pdf')
-    plot_deviation_comp(parser, polarizance_real, p_hat, set_colors=True, saveto='outputs/self_calibration_polarizance_est.pdf')
+    plot_deviation_comp(parser, polarizance_real[..., 0], p_hat[..., 0], set_colors=True, saveto='outputs/self_calibration_polarizance_est.pdf')
     plot_mueller(biref, parser, cbar=True, vmin=-0.05, vmax=1, saveto='outputs/self_calib_birefringence_est.pdf')
     pass
 
