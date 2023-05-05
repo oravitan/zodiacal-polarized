@@ -23,7 +23,7 @@ def cost_callback(calib: Calibration, p, eta, mueller):
 
 def calibration(n_rotations, n_itr, zodipol, parser):
     obs, rotation_list = get_observations(n_rotations, zodipol, parser)
-    obs, images_orig, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs, parser, zodipol)
+    obs, images_orig, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs, parser, zodipol, mode='sine')
     true_values = {'images': images_orig, 'p': polarizance_real, 'eta': polarization_angle_real, 'biref': mueller_truth}
     obs_comb = zodipol.combine_observations(obs, polarizance=polarizance_real.squeeze(), polarization_angle=polarization_angle_real)
     callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
@@ -49,7 +49,9 @@ if __name__ == '__main__':
     n_itr = 20
     true_values, est_values, cost, p_cost, mueller_cost = calibration(n_rotations, n_itr, zodipol, parser)
     plot_cost_itr(cost, p_cost, mueller_cost, saveto="outputs/calib_cost_vs_iteration.pdf")
-    plot_deviation_comp(parser, true_values["p"][:, 0], est_values["p"][:, 0], saveto="outputs/calib_mueller_estimation.pdf")
+    plot_deviation_comp(parser, true_values["p"][:, 0], est_values["p"][:, 0], saveto="outputs/calib_p_estimation.pdf")
+    plot_mueller(est_values["biref"], parser, cbar=True, saveto='outputs/calibration_biref_matrix_reconst.pdf')
+    plot_mueller(true_values["biref"], parser, cbar=True, saveto='outputs/mueller_matrix_example.pdf')
 
     A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
 

@@ -24,28 +24,37 @@ def get_observations(n_rotations, zodipol, parser,  rotations_file_path=DEFAULT_
             pkl.dump(obs_rot, f)
     return obs_rot, rotation_list
 
-def get_initial_parameters(obs, parser, zodipol):
+def get_initial_parameters(obs, parser, zodipol, mode='linear'):
     n_rotations = len(obs)
     motion_blur = 360 / n_rotations / zodipol.imager.exposure_time.value * u.deg
     obs = [o.add_radial_blur(motion_blur, list(parser["resolution"])) for o in obs]
     obs = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"]) for o in obs]
 
-    delta_val, phi_val = np.pi / 4, np.pi / 6
-    # delta_val, phi_val = 0, 0
-    delta = zodipol.imager.get_birefringence_mat(delta_val, 'center', flat=True, inv=True)
-    phi = zodipol.imager.get_birefringence_mat(phi_val, 'linear', flat=True, angle=-np.pi / 4)
-    mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, phi)
+    if mode == 'linear':
+        delta_val, phi_val = np.pi / 4, np.pi / 6
+        delta = zodipol.imager.get_birefringence_mat(delta_val, 'center', flat=True)
+        phi = zodipol.imager.get_birefringence_mat(phi_val, 'linear', flat=True, angle=np.pi / 2)
+        mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, phi)
+        obs_biref = [zodipol.imager.apply_birefringence(o, mueller_truth[:, None, ...]) for o in obs]
 
-    obs_biref = [zodipol.imager.apply_birefringence(o, mueller_truth[:, None, ...]) for o in obs]
+        polarizance = zodipol.imager.get_birefringence_mat(0.95, 'linear', flat=True, min=0.75)
+        polarizance_real = polarizance.reshape((-1, 1, 1)).repeat(parser["n_polarization_ang"], axis=-1)
+    elif mode == 'sine':
+        delta_val, phi_val = np.pi / 4, 2 * np.pi
+        delta = zodipol.imager.get_birefringence_mat(delta_val, 'center', flat=True)
+        phi = zodipol.imager.get_birefringence_mat(phi_val, 'sine', flat=True, angle=np.pi/2, min=-2*np.pi)
+        mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, phi)
 
+        obs_biref = [zodipol.imager.apply_birefringence(o, mueller_truth[:, None, ...]) for o in obs]
+
+        polarizance = zodipol.imager.get_birefringence_mat(2 * np.pi, 'sine', flat=True, min=-2 * np.pi)
+        polarizance = (polarizance - polarizance.min()) / (polarizance.max() - polarizance.min()) * 0.3 + 0.6
+        polarizance_real = polarizance.reshape((-1, 1, 1)).repeat(parser["n_polarization_ang"], axis=-1)
+    else:
+        raise ValueError(f'mode {mode} not recognized')
     polarization_angle = parser["polarization_angle"]
-    _, polarization_angle_spatial_diff = np.meshgrid(np.arange(parser["resolution"][0]), np.deg2rad(np.linspace(-10, 10, parser["resolution"][1])), indexing='ij')
-    polarization_angle_spatial_diff = np.zeros_like(polarization_angle_spatial_diff)
-    polarization_angle_real = polarization_angle[None, None :] + polarization_angle_spatial_diff.flatten()[:, None, None]
-
-    polarizance, _ = np.meshgrid(np.linspace(0.7, 0.95, parser["resolution"][0]), np.arange(parser["resolution"][1]),
-                       indexing='ij')
-    polarizance_real = polarizance.reshape((-1, 1, 1)).repeat(parser["n_polarization_ang"], axis=-1)
+    polarization_angle_spatial_diff = np.zeros_like(polarizance)
+    polarization_angle_real = polarization_angle[None, None, :] + polarization_angle_spatial_diff.flatten()[:, None, None]
 
     obs_orig = [zodipol.make_camera_images(o, polarizance_real, polarization_angle_real, n_realizations=parser["n_realizations"], add_noise=True) for o in obs_biref]
     images_orig = zodipol.post_process_images(np.stack(obs_orig, axis=-1))

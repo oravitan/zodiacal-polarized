@@ -62,7 +62,7 @@ def get_w2c(theta, phi, roll):
 
 
 # image alignment and rotation methods
-def align_images(zodipol, parser, images_res, rotation_arr, invert=False, fill_value=0, method="nearest"):
+def align_images(zodipol, parser, images_res, rotation_arr, invert=False, fill_value=0):
     """
     Align the images to the reference image.
     :param images_res: The images to align.
@@ -72,13 +72,13 @@ def align_images(zodipol, parser, images_res, rotation_arr, invert=False, fill_v
         rotation_arr = rotation_arr
     res_images = []
     for ii in range(len(rotation_arr)):
-        rot_image = get_rotated_image(zodipol, parser, images_res[..., ii], -rotation_arr[ii], fill_value=fill_value, method=method)
+        rot_image = get_rotated_image(zodipol, parser, images_res[..., ii], -rotation_arr[ii], fill_value=fill_value)
         res_images.append(rot_image)
     images_res = np.stack(res_images, axis=-1)
     return images_res
 
 
-def get_rotated_image(zodipol, parser, images, rotation_to, fill_value=0, method="nearest"):
+def get_rotated_image(zodipol, parser, images, rotation_to, fill_value=0):
     """
     Rotate the images to the reference frame.
     :param images: The images to rotate.

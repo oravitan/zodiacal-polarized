@@ -42,7 +42,7 @@ class SelfCalibration(BaseCalibration):
         """
         Get a mask of the images that are nan, because they're not contained within all input images.
         """
-        nan_imag = align_images(self.zodipol, self.parser, np.ones((images.shape[0], len(self.rotation_list))), self.rotation_list, fill_value=np.nan, method='linear')
+        nan_imag = align_images(self.zodipol, self.parser, np.ones((images.shape[0], len(self.rotation_list))), self.rotation_list, fill_value=np.nan)
         nan_ind = np.isnan(nan_imag).any(axis=-1).squeeze()
         return nan_ind
 
@@ -50,7 +50,8 @@ class SelfCalibration(BaseCalibration):
         """
         Get the properties of the calibration.
         """
-        res = []
+        images = np.stack([self.forward_model(o) for o in self.obs], axis=-1)
+        res = [images]
         for ii in [self.p, self.eta, self.biref]:
             ii_copy = ii.copy()
             ii_copy[self.nan_mask, ...] = np.nan

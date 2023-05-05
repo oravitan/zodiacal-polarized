@@ -266,7 +266,11 @@ class Imager:
                                np.linspace(min_v, value, self.resolution[1]), indexing='ij')
             biref_value = x * np.cos(angle) - y * np.sin(angle)
         elif type == 'sine':
-            raise NotImplementedError('Center birefringence is not implemented yet.')
+            angle = kwargs["angle"] if "angle" in kwargs else 0
+            min_v = kwargs["min"] if "min" in kwargs else -value
+            x, y = np.meshgrid(np.linspace(min_v, value, self.resolution[0]),
+                               np.linspace(min_v, value, self.resolution[1]), indexing='ij')
+            biref_value = np.sin(x * np.cos(angle) - y * np.sin(angle))
         else:
             raise ValueError(f'Birefringence type \"{type}\"is not a valid type.')
 
