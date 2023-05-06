@@ -26,16 +26,16 @@ class SelfCalibration(BaseCalibration):
         self.nan_mask = self.get_nan_mask(images_res_flat)
         self.initialize()
 
-    def _calibrate_itr(self, images):
+    def _calibrate_itr(self, images, **kwargs):
         self.obs = self.estimate_observations(images)
         self.estimate_polarizance(images)
         self.estimate_birefringence(images)
 
-    def estimate_polarizance(self, images):
+    def estimate_polarizance(self, images, **kwargs):
         super().estimate_polarizance(images)
         self.p = self.p - np.nanmax(self.p[~self.nan_mask]) + 1
 
-    def estimate_birefringence(self, images, kernel_size: int = None, normalize_eigs: bool = False):
+    def estimate_birefringence(self, images, kernel_size: int = None, normalize_eigs: bool = False, **kwargs):
         super().estimate_birefringence(images, kernel_size=kernel_size, normalize_eigs=normalize_eigs)
 
     def get_nan_mask(self, images):
@@ -51,6 +51,7 @@ class SelfCalibration(BaseCalibration):
         Get the properties of the calibration.
         """
         images = np.stack([self.forward_model(o) for o in self.obs], axis=-1)
+        images[self.nan_mask, ...] = np.nan
         res = [images]
         for ii in [self.p, self.eta, self.biref]:
             ii_copy = ii.copy()

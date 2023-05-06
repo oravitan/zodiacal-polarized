@@ -98,9 +98,9 @@ def get_rotated_image(zodipol, parser, images, rotation_to, fill_value=0):
         vec_from = ang2vec(theta_from, phi_from)
         vec_to = ang2vec(theta_to, phi_to)
 
-        dx = (vec_from[:, 0].max() - vec_from[:, 0].min()) / parser["resolution"][1]
+        dx = (vec_from[:, 2].max() - vec_from[:, 2].min()) / parser["resolution"][1]
         dy = (vec_from[:, 1].max() - vec_from[:, 1].min()) / parser["resolution"][0]
-        x_ind = np.round((vec_to[:, 0] - vec_from[:, 0].min()) / dx).astype(int)
+        x_ind = np.round((vec_from[:, 2].max() - vec_to[:, 2]) / dx).astype(int)
         y_ind = np.round((vec_to[:, 1] - vec_from[:, 1].min()) / dy).astype(int)
         index_mask = (x_ind >= 0) & (x_ind < parser["resolution"][1]) & (y_ind >= 0) & (y_ind < parser["resolution"][0])
         return x_ind, y_ind, index_mask
