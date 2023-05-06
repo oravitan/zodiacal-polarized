@@ -4,6 +4,8 @@ import numpy as np
 import astropy.units as u
 from tqdm import tqdm
 
+from skimage.util import random_noise
+
 
 DEFAULT_PATH = 'saved_models/self_calibration_40.pkl'
 
@@ -49,6 +51,15 @@ def get_initial_parameters(obs, parser, zodipol, mode='linear'):
 
         polarizance = zodipol.imager.get_birefringence_mat(2 * np.pi, 'sine', flat=True, min=-2 * np.pi)
         polarizance = (polarizance - polarizance.min()) / (polarizance.max() - polarizance.min()) * 0.3 + 0.6
+        polarizance_real = polarizance.reshape((-1, 1, 1)).repeat(parser["n_polarization_ang"], axis=-1)
+    elif mode == 'anomalies':
+        delta = zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)
+        phi = zodipol.imager.get_birefringence_mat(0, 'constant', flat=True)
+        mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, phi)
+        obs_biref = [zodipol.imager.apply_birefringence(o, mueller_truth[:, None, ...]) for o in obs]
+
+        polarizance = zodipol.imager.get_birefringence_mat(0.9, 'constant', flat=True)
+        polarizance = random_noise(polarizance, mode='pepper', amount=0.03)
         polarizance_real = polarizance.reshape((-1, 1, 1)).repeat(parser["n_polarization_ang"], axis=-1)
     else:
         raise ValueError(f'mode {mode} not recognized')
