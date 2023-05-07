@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from sklearn.metrics import confusion_matrix, roc_curve
+
 # import the necessary modules
 from zodipol.utils.argparser import ArgParser
 from zodipol.zodipol import Zodipol, get_observations, get_initial_parameters
@@ -35,6 +37,7 @@ def main():
 
     gt = polarizance_real[:, 0] <= 0.5
     gt[np.isnan(polarizance_real[:, 0])] = np.nan
+    gt = np.where(gt, 'damaged', 'non-damaged')
 
     pd.DataFrame(dict(value=z_k, gt=gt)).dropna().boxplot(column='value', by='gt')
     plt.title(None)
@@ -44,7 +47,24 @@ def main():
     plt.gca().tick_params(labelsize=14)
     plt.savefig('outputs/anomality_boxplot.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
-    pass
+
+    classficiation = z_k >= 3
+    classficiation = np.where(classficiation, 'damaged', 'non-damaged')
+
+    conf_matrix = confusion_matrix(gt, classficiation)
+    fig, ax = plt.subplots(figsize=(7.5, 7.5))
+    ax.matshow(conf_matrix, cmap=plt.cm.Blues, alpha=0.3)
+    for i in range(conf_matrix.shape[0]):
+        for j in range(conf_matrix.shape[1]):
+            ax.text(x=j, y=i, s=conf_matrix[i, j], va='center', ha='center', size='xx-large')
+    ax.tick_params(labelsize=16)
+    plt.xticks([0, 1], ['damaged', 'non-damaged'], fontsize=18)
+    plt.yticks([0, 1], ['damaged', 'non-damaged'], fontsize=18, rotation=90, va='center')
+    plt.xlabel('Estimations', fontsize=18)
+    plt.ylabel('Actuals', fontsize=18)
+    plt.title('Confusion Matrix', fontsize=18)
+    plt.savefig('outputs/anomality_confusion.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
+    plt.show()
 
 
 if __name__ == '__main__':
