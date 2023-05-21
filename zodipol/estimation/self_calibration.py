@@ -28,8 +28,8 @@ class SelfCalibration(BaseCalibration):
 
     def _calibrate_itr(self, images, **kwargs):
         self.obs = self.estimate_observations(images)
-        self.estimate_polarizance(images)
-        self.estimate_birefringence(images)
+        self.estimate_polarizance(images, **kwargs)
+        self.estimate_birefringence(images, **kwargs)
 
     def estimate_polarizance(self, images, **kwargs):
         super().estimate_polarizance(images)
