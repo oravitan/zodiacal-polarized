@@ -4,7 +4,9 @@ This script performs self-calibration on a Zodipol object.
 import numpy as np
 import matplotlib.pyplot as plt
 import astropy.units as u
+
 from functools import partial
+from typing import List
 
 # import the necessary modules
 from zodipol.estimation.self_calibration import SelfCalibration
@@ -13,7 +15,12 @@ from zodipol.zodipol import Zodipol, get_observations, get_initial_parameters
 from zodipol.visualization.calibration_plots import plot_deviation_comp, plot_mueller, plot_cost_itr, plot_res_comp_plot
 
 
-def perform_estimation(zodipol, parser, rotation_list, images_res_flat, polarizance_real, polarization_angle_real, mueller_truth, n_itr=10, **kwargs):
+def self_calibrate(zodipol: Zodipol, parser: ArgParser, rotation_list: List[int], images_res_flat: np.ndarray,
+                   polarizance_real: np.ndarray, polarization_angle_real: np.ndarray, mueller_truth: np.ndarray,
+                   n_itr: int = 10, **kwargs):
+    """
+    Perform self-calibration on a Zodipol object.
+    """
     theta0, phi0 = zodipol.create_sky_coords(theta=parser["direction"][0], phi=parser["direction"][1], roll=0 * u.deg, resolution=parser["resolution"])
     callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
     self_calib = SelfCalibration(images_res_flat, rotation_list, zodipol, parser, theta=theta0, phi=phi0)
@@ -24,7 +31,10 @@ def perform_estimation(zodipol, parser, rotation_list, images_res_flat, polariza
     return cost_itr, est_values, clbk_itr
 
 
-def cost_callback(calib: SelfCalibration, p, eta, mueller):
+def cost_callback(calib: SelfCalibration, p: np.ndarray, eta: np.ndarray, mueller: np.ndarray):
+    """
+    Callback function to calculate the cost function.
+    """
     _, cp, _, biref = calib.get_properties()
     p_cost = np.nanmean((p - cp) ** 2)
     mueller_cost = np.nanmean((mueller[..., 1:3, 1:3] - biref[..., 1:3, 1:3])**2)
@@ -45,8 +55,8 @@ def main():
     obs_truth, images_res, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs_truth, parser, zodipol, mode='sine')
     images_res_flat = images_res.reshape((np.prod(parser["resolution"]), parser["n_polarization_ang"], n_rotations))
     images_res_flat = zodipol.post_process_images(images_res_flat)
-    cost_itr, est_values, clbk_itr = perform_estimation(zodipol, parser, rotation_list, images_res_flat,
-                                                  polarizance_real, polarization_angle_real, mueller_truth, n_itr=n_itr, normalize_eigs=True)
+    cost_itr, est_values, clbk_itr = self_calibrate(zodipol, parser, rotation_list, images_res_flat,
+                                                    polarizance_real, polarization_angle_real, mueller_truth, n_itr=n_itr, normalize_eigs=True)
     p_cost, mueller_cost = list(zip(*clbk_itr))
     plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto='outputs/self_calibration_cost_itr.pdf')
     plot_deviation_comp(parser, polarizance_real[..., 0], est_values['p'][..., 0], set_colors=True, saveto='outputs/self_calibration_polarizance_est.pdf')
@@ -61,9 +71,9 @@ def main():
             obs_truth, parser, zodipol, mode='sine')
         images_res_flat = images_res.reshape((np.prod(parser["resolution"]), parser["n_polarization_ang"], n_rotations))
         images_res_flat = zodipol.post_process_images(images_res_flat)
-        cost_itr, est_values, clbk_itr = perform_estimation(zodipol, parser, rotation_list, images_res_flat,
-                                                                       polarizance_real, polarization_angle_real,
-                                                                       mueller_truth, n_itr=n_itr)
+        cost_itr, est_values, clbk_itr = self_calibrate(zodipol, parser, rotation_list, images_res_flat,
+                                                        polarizance_real, polarization_angle_real,
+                                                        mueller_truth, n_itr=n_itr)
         p_cost, mueller_cost = list(zip(*clbk_itr))
         mean_num_electrons = np.mean((images_res_flat / A_gamma).to('').value)
         res_cost.append((cost_itr[-1] / mean_num_electrons, p_cost[-1], mueller_cost[-1]))
@@ -83,9 +93,9 @@ def main():
             obs_truth, parser, zodipol, mode='sine')
         images_res_flat = images_res.reshape((np.prod(parser["resolution"]), parser["n_polarization_ang"], n_rotations))
         images_res_flat = zodipol.post_process_images(images_res_flat)
-        cost_itr, est_values, clbk_itr = perform_estimation(zodipol, parser, rotation_list, images_res_flat,
-                                                            polarizance_real, polarization_angle_real,
-                                                            mueller_truth, n_itr=n_itr)
+        cost_itr, est_values, clbk_itr = self_calibrate(zodipol, parser, rotation_list, images_res_flat,
+                                                        polarizance_real, polarization_angle_real,
+                                                        mueller_truth, n_itr=n_itr)
         p_cost, mueller_cost = list(zip(*clbk_itr))
         mean_num_electrons = np.mean((images_res_flat / A_gamma).to('').value)
         res_cost.append((cost_itr[-1] / mean_num_electrons, p_cost[-1], mueller_cost[-1]))

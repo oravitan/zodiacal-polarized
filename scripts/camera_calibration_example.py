@@ -1,3 +1,6 @@
+"""
+Example script to perform the camera calibration.
+"""
 import logging
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,14 +17,20 @@ logging_format = '%(asctime)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=logging_format)
 
 
-def cost_callback(calib: Calibration, p, eta, mueller):
+def cost_callback(calib: Calibration, p: np.ndarray, eta: np.ndarray, mueller: np.ndarray):
+    """
+    Callback function to calculate the cost function of the calibration.
+    """
     mueller_est = calib.biref
     p_cost = np.nanmean((p.squeeze() - calib.p)**2)
     mueller_cost = np.nanmean((mueller[..., 1:3, 1:3] - mueller_est[..., 1:3, 1:3])**2)
     return p_cost, mueller_cost
 
 
-def calibration(n_rotations, n_itr, zodipol, parser):
+def calibration(n_rotations: int, n_itr: int, zodipol: Zodipol, parser: ArgParser):
+    """
+    Function to perform the calibration.
+    """
     obs, rotation_list = get_observations(n_rotations, zodipol, parser)
     obs, images_orig, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs, parser, zodipol, mode='sine')
     true_values = {'images': images_orig, 'p': polarizance_real, 'eta': polarization_angle_real, 'biref': mueller_truth}

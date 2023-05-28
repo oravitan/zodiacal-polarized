@@ -12,7 +12,7 @@ from sklearn.metrics import confusion_matrix, roc_curve
 from zodipol.utils.argparser import ArgParser
 from zodipol.zodipol import Zodipol, get_observations, get_initial_parameters
 from zodipol.visualization.calibration_plots import plot_deviation_comp, plot_mueller, plot_cost_itr
-from scripts.self_calibration import perform_estimation
+from scripts.self_calibration import self_calibrate
 
 
 def main():
@@ -29,8 +29,8 @@ def main():
     obs_truth, images_res, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs_truth, parser, zodipol, mode='anomalies')
     images_res_flat = images_res.reshape((np.prod(parser["resolution"]), parser["n_polarization_ang"], n_rotations))
     images_res_flat = zodipol.post_process_images(images_res_flat)
-    cost_itr, est_values, clbk_itr = perform_estimation(zodipol, parser, rotation_list, images_res_flat,
-                                                  polarizance_real, polarization_angle_real, mueller_truth, n_itr=n_itr)
+    cost_itr, est_values, clbk_itr = self_calibrate(zodipol, parser, rotation_list, images_res_flat,
+                                                    polarizance_real, polarization_angle_real, mueller_truth, n_itr=n_itr)
 
     # Filtering Method
     p_est = est_values['p'][:, 0].reshape((300, 200))

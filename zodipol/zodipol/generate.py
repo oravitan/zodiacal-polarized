@@ -2,15 +2,25 @@ import os
 import pickle as pkl
 import numpy as np
 import astropy.units as u
-from tqdm import tqdm
 
+from tqdm import tqdm
+from typing import List
 from skimage.util import random_noise
+
+from zodipol.utils.argparser import ArgParser
+from zodipol.zodipol.zodipol import Zodipol
+from zodipol.zodipol.observation import Observation
 
 
 DEFAULT_PATH = 'saved_models/self_calibration_40.pkl'
 
 
-def get_observations(n_rotations, zodipol, parser,  rotations_file_path=DEFAULT_PATH):
+def get_observations(n_rotations: int, zodipol: Zodipol, parser: ArgParser,  rotations_file_path: str = DEFAULT_PATH):
+    """
+    Generate observations for self-calibration.
+    IF the saved rotations pickle file exists, then the observations are loaded from the file.
+    ELSE, the observations are generated and saved to the file.
+    """
     rotation_list = np.linspace(0, 360, n_rotations, endpoint=False)
     if os.path.isfile(rotations_file_path):
         # saved rotations pickle file exists
@@ -26,7 +36,11 @@ def get_observations(n_rotations, zodipol, parser,  rotations_file_path=DEFAULT_
             pkl.dump(obs_rot, f)
     return obs_rot, rotation_list
 
-def get_initial_parameters(obs, parser, zodipol, mode='linear'):
+
+def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Zodipol, mode: str = 'linear'):
+    """
+    Generate initial parameters for calibration.
+    """
     n_rotations = len(obs)
     motion_blur = 360 / n_rotations * u.deg
     obs = [o.add_radial_blur(motion_blur, list(parser["resolution"])) for o in obs]
@@ -79,4 +93,3 @@ def get_initial_parameters(obs, parser, zodipol, mode='linear'):
     obs_orig = [zodipol.make_camera_images(o, polarizance_real, polarization_angle_real, n_realizations=parser["n_realizations"], add_noise=True) for o in obs_biref]
     images_orig = zodipol.post_process_images(np.stack(obs_orig, axis=-1))
     return obs, images_orig, polarizance_real.reshape(-1, parser["n_polarization_ang"]), polarization_angle_spatial_diff.reshape((-1)), mueller_truth
-

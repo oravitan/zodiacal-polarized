@@ -14,8 +14,7 @@ from zodipol.zodipy_local.zodipy._source_funcs import (
     interpolate_phase
 )
 
-from zodipol.mie_scattering.mueller_matrices import get_unpolarized_stokes_vector, get_rotation_mueller_matrix
-from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
+from zodipol.utils.mueller_matrices import get_unpolarized_stokes_vector, get_rotation_mueller_matrix
 
 if TYPE_CHECKING:
 

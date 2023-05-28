@@ -23,7 +23,6 @@ from zodipol.zodipy_local.zodipy._unit_vectors import get_unit_vectors_from_ang,
 from zodipol.zodipy_local.zodipy._validators import get_validated_ang, get_validated_pix
 from zodipol.zodipy_local.zodipy.model_registry import model_registry
 
-from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 
 if TYPE_CHECKING:
     import numpy.typing as npt
