@@ -46,7 +46,7 @@ if __name__ == '__main__':
                       resolution=parser["resolution"], imager_params=parser["imager_params"])
 
     n_rotations = 20
-    n_itr = 20
+    n_itr = 10
     true_values, est_values, cost, p_cost, mueller_cost = calibration(n_rotations, n_itr, zodipol, parser)
     plot_cost_itr(cost, p_cost, mueller_cost, saveto="outputs/calib_cost_vs_iteration.pdf")
     plot_deviation_comp(parser, true_values["p"][:, 0], est_values["p"][:, 0], saveto="outputs/calib_p_estimation.pdf")

@@ -141,23 +141,36 @@ class BaseCalibration:
 
         angles_matrix = 0.5 * np.stack((p * np.cos(2 * angles), p * np.sin(2 * angles)), axis=-1)
 
-        stokes_pseudo_inv = np.linalg.pinv(stokes_QU.swapaxes(-1,-2))
-        angles_pseudo_inv = np.linalg.pinv(angles_matrix.swapaxes(-1,-2))
+        g_k, f_k = stokes_QU[..., 0, :], stokes_QU[..., 1, :]
 
-        biref = np.einsum('...ij,...jk,...kw->...iw', stokes_pseudo_inv, intensity_I, angles_pseudo_inv)
+        F1 = np.stack((g_k, f_k, np.zeros_like(g_k)), axis=-1)
+        F2 = np.stack((np.zeros_like(g_k), g_k, f_k), axis=-1)
+        F_K1, F_K2, F_K3, F_K4 = angles_matrix[:, 0, 0, None, None] * F1, angles_matrix[:, 1, 1, None, None] * F2, \
+            angles_matrix[:, 2, 0, None, None] * F1, angles_matrix[:, 3, 1, None, None] * F2
+        F_K = np.stack((F_K1, F_K2, F_K3, F_K4), axis=-2).reshape((F_K1.shape[0], -1, 3))
 
-        # assert np.sqrt(np.median((biref[:, 0, 0] - 1)**2)) < 0.05, 'biref[0, 0] is not 1'
+        N_I = intensity_I.reshape((intensity_I.shape[0], -1))
 
+        F_k_inv = np.linalg.pinv(F_K)
+        biref_elems = np.einsum('...ij,...j->...i', F_k_inv, N_I)
         if normalize_eigs:
-            W, V = np.linalg.eig(biref)
-            eig_normalization = np.max((np.ones(biref.shape[:1]), np.max(W.real, axis=-1)), axis=0)[:, None, None]
-            biref = biref / eig_normalization
+            ac_diff = np.clip(biref_elems[:, 0] + biref_elems[:, 2], 0, 2) - (biref_elems[:, 0] + biref_elems[:, 2])
+            biref_elems[:, 0] += ac_diff / 2
+            biref_elems[:, 2] += ac_diff / 2
+
+            b2_max = biref_elems[:, 0] * biref_elems[:, 2] + 1
+            b2_min = biref_elems[:, 0] * biref_elems[:, 2] - 1
+            biref_elems[:, 1] = np.clip(biref_elems[:, 1], np.sqrt(np.clip(b2_min, 0, None)), np.sqrt(b2_max))
+            biref_elems = np.nan_to_num(biref_elems, nan=0)
+
+        biref = np.stack((np.stack((biref_elems[..., 0], biref_elems[..., 1]), axis=-1),
+                          np.stack((biref_elems[..., 1], biref_elems[..., 2]), axis=-1)), axis=-1)
         biref = np.clip(biref, -1, 1)
 
         # smooth biref
         if kernel_size is not None:
             kernel = np.ones((kernel_size, kernel_size)) / kernel_size ** 2
-            biref_resh = biref.reshape(self.parser["resolution"] + [9])
+            biref_resh = biref.reshape(self.parser["resolution"] + [4])
             biref_smooth = np.stack([convolve2d(biref_resh[..., ii], kernel, mode='same', boundary='symm') for ii in
                                      range(biref_resh.shape[-1])], axis=-1)
             biref = biref_smooth.reshape(biref.shape)

@@ -81,3 +81,18 @@ if __name__ == '__main__':
     logging.info(f'Plotting the biref camera intensity.')
     biref_intensity_noise = zodipol.make_camera_images(biref_obs, n_realizations=parser["n_realizations"], add_noise=True)
     plot_satellite_image_indices(biref_intensity_noise, 4, resolution=parser["resolution"],title="Camera Noised Polarized Intensity")
+
+    # make color images
+    import matplotlib.pyplot as plt
+    camera_intensity_color = zodipol.make_camera_images_multicolor(obs, n_realizations=1, add_noise=False)
+    I_color = camera_intensity_color.reshape((300, 200, 3, 4))
+    I_color_norm = (I_color - I_color.min()) / (I_color.max() - I_color.min())
+
+    fig, ax = plt.subplots(2, 2, figsize=(10, 10))
+    ax[0, 0].imshow(I_color_norm[..., 0]); ax[0, 0].axis('off')
+    ax[0, 1].imshow(I_color_norm[..., 1]); ax[0, 1].axis('off')
+    ax[1, 0].imshow(I_color_norm[..., 3]); ax[1, 0].axis('off')
+    ax[1, 1].imshow(I_color_norm[..., 2]); ax[1, 1].axis('off')
+    fig.tight_layout()
+    plt.savefig('outputs/image_exmaple_color.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
+    plt.show()
