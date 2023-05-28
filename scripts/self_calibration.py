@@ -40,7 +40,7 @@ def main():
 
     # generate observations
     n_itr = 10
-    n_rotations = 20
+    n_rotations = 10
     obs_truth, rotation_list = get_observations(n_rotations, zodipol, parser)
     obs_truth, images_res, polarizance_real, polarization_angle_real, mueller_truth = get_initial_parameters(obs_truth, parser, zodipol, mode='sine')
     images_res_flat = images_res.reshape((np.prod(parser["resolution"]), parser["n_polarization_ang"], n_rotations))
