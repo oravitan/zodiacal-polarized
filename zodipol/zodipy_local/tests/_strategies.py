@@ -26,8 +26,8 @@ from hypothesis.strategies import (
     sampled_from,
 )
 
-import zodipy_local
-from zodipy_local._line_of_sight import COMPONENT_CUTOFFS
+import zodipy
+from zodipy._line_of_sight import COMPONENT_CUTOFFS
 
 MIN_FREQ = u.Quantity(10, u.GHz)
 MAX_FREQ = u.Quantity(0.1, u.micron).to(u.GHz, equivalencies=u.spectral())
@@ -47,7 +47,7 @@ MAX_NSIDE_EXP = int(log2(MAX_NSIDE))
 MAX_PIXELS_LEN = 10000
 MAX_ANGELS_LEN = 10000
 
-AVAILABLE_MODELS = zodipy_local.model_registry.models
+AVAILABLE_MODELS = zodipy.model_registry.models
 
 
 @composite
@@ -117,7 +117,7 @@ def angles(
 
 @composite
 def freq(
-    draw: DrawFn, model: zodipy_local.Zodipy
+    draw: DrawFn, model: zodipy.Zodipy
 ) -> u.Quantity[u.GHz] | u.Quantity[u.micron]:
 
     if model.extrapolate:
@@ -184,7 +184,7 @@ def weights(
 
 
 @composite
-def obs(draw: DrawFn, model: zodipy_local.Zodipy, obs_time: Time) -> str:
+def obs(draw: DrawFn, model: zodipy.Zodipy, obs_time: Time) -> str:
     def get_obs_dist(obs: str, obs_time: Time) -> u.Quantity[u.AU]:
         if obs == "semb-l2":
             obs_pos = (
@@ -216,7 +216,7 @@ def obs(draw: DrawFn, model: zodipy_local.Zodipy, obs_time: Time) -> str:
 
 
 @composite
-def any_obs(draw: DrawFn, model: zodipy_local.Zodipy) -> str:
+def any_obs(draw: DrawFn, model: zodipy.Zodipy) -> str:
     return draw(sampled_from(model.supported_observers))
 
 
@@ -229,12 +229,12 @@ MODEL_STRATEGY_MAPPINGS: dict[str, SearchStrategy[Any]] = {
 
 
 @composite
-def model(draw: DrawFn, **static_params: dict[str, Any]) -> zodipy_local.Zodipy:
+def model(draw: DrawFn, **static_params: dict[str, Any]) -> zodipy.Zodipy:
     strategies = MODEL_STRATEGY_MAPPINGS.copy()
     for key in static_params.keys():
         if key in strategies:
             strategies.pop(key)
 
     return draw(
-        builds(partial(zodipy_local.Zodipy, parallel=False, **static_params), **strategies)
+        builds(partial(zodipy.Zodipy, parallel=False, **static_params), **strategies)
     )

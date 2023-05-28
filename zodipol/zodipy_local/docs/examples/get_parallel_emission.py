@@ -6,7 +6,7 @@ import healpy as hp
 import numpy as np
 from astropy.time import Time
 
-from zodipy_local import Zodipy
+from zodipy import Zodipy
 
 nside = 256
 pixels = np.arange(hp.nside2npix(nside))

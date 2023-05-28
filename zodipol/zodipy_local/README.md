@@ -25,7 +25,7 @@ ZodiPy is installed using `pip install zodipy`.
 import astropy.units as u
 from astropy.time import Time
 
-from zodipy_local import Zodipy
+from zodipy import Zodipy
 
 model = Zodipy("dirbe")
 

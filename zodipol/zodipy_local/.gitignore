@@ -23,7 +23,7 @@ site
 context.py
 test.py
 fitting
-zodipy_local/zodipy_local/_integration.py
+zodipy/zodipy_local/_integration.py
 
 # data
 dirbe

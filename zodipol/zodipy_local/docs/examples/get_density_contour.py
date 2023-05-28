@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LogNorm
 
-from zodipy_local import tabulate_density
+from zodipy import tabulate_density
 
 N = 200
 

@@ -1,6 +1,6 @@
 from hypothesis import given
 
-from zodipy_local.zodipy_local import Zodipy
+from zodipy.zodipy import Zodipy
 
 from ._strategies import model
 
