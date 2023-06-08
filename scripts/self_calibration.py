@@ -71,7 +71,7 @@ def main_show_cost(n_rotations=10, n_itr=10):
                       resolution=parser["resolution"], imager_params=parser["imager_params"])
 
     # generate observations
-    cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser, normalize_eigs=True)
+    cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser, normalize_eigs=True, kernel_size=5)
     p_cost, mueller_cost, p_std, mueller_std, p_mad, mueller_mad = list(zip(*clbk_itr))
     plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto='outputs/self_calibration_cost_itr.pdf')
     plot_deviation_comp(parser, true_values["p"][..., 0], est_values['p'][..., 0], set_colors=True,
