@@ -210,7 +210,7 @@ class Imager:
         observation_mat = obs.to_numpy(ndims=3)
         observation_biref = np.einsum('a...ij,a...jk->a...ik', biref_mat[..., :3, :3], observation_mat[..., None])
         I, Q, U = observation_biref[..., 0, 0], observation_biref[..., 1, 0], observation_biref[..., 2, 0]
-        return Observation(I, Q, U, theta=obs.theta, phi=obs.phi)
+        return Observation(I, Q, U, theta=obs.theta, phi=obs.phi, star_pixels=obs.star_pixels)
 
     def get_birefringence_mueller_matrix(self, birefringence_amount, birefringence_angle):
         pol_mueller = self._get_birefringence_polarizer_mat(birefringence_amount)

@@ -12,7 +12,7 @@ from zodipol.zodipol.zodipol import Zodipol
 from zodipol.zodipol.observation import Observation
 
 
-DEFAULT_PATH = 'saved_models/self_calibration_40.pkl'
+DEFAULT_PATH = 'saved_models/self_calibration_obs.pkl'
 
 
 def get_observations(n_rotations: int, zodipol: Zodipol, parser: ArgParser,  rotations_file_path: str = DEFAULT_PATH):
@@ -37,14 +37,18 @@ def get_observations(n_rotations: int, zodipol: Zodipol, parser: ArgParser,  rot
     return obs_rot, rotation_list
 
 
-def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Zodipol, mode: str = 'linear'):
+def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Zodipol, mode: str = 'linear',
+                           direction_uncertainty: u.Quantity = None):
     """
     Generate initial parameters for calibration.
     """
-    n_rotations = len(obs)
-    motion_blur = 360 / n_rotations * u.deg
-    obs = [o.add_radial_blur(motion_blur, list(parser["resolution"])) for o in obs]
-    obs = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"]) for o in obs]
+    # n_rotations = len(obs)
+    # motion_blur = 360 / n_rotations * u.deg
+    if direction_uncertainty is None:
+        direction_uncertainty = parser["direction_uncertainty"]
+    obs = [o.add_radial_blur(direction_uncertainty, list(parser["resolution"])) for o in obs]
+    obs = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], direction_uncertainty) for o in obs]
+    [o.dilate_star_pixels(3, parser["resolution"]) for o in obs]
 
     if mode == 'linear':
         delta_val, phi_val = np.pi / 4, np.pi / 6
@@ -65,8 +69,8 @@ def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Z
         polarizance = zodipol.imager.get_birefringence_mat(0.95, 'constant', flat=True)
         polarizance_real = polarizance.reshape((-1, 1, 1)).repeat(parser["n_polarization_ang"], axis=-1)
     elif mode == 'sine':
-        delta_val, phi_val = np.pi / 4, 2 * np.pi
-        delta = zodipol.imager.get_birefringence_mat(delta_val, 'center', flat=True)
+        delta_val, phi_val = np.pi / 12, 2 * np.pi
+        delta = zodipol.imager.get_birefringence_mat(delta_val, 'center', flat=True, inv=True)
         phi = zodipol.imager.get_birefringence_mat(phi_val, 'sine', flat=True, angle=np.pi/2, min=-2*np.pi)
         mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, phi)
 
@@ -90,6 +94,17 @@ def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Z
     polarization_angle_spatial_diff = np.zeros_like(polarizance)
     polarization_angle_real = polarization_angle[None, None, :] + polarization_angle_spatial_diff.flatten()[:, None, None]
 
-    obs_orig = [zodipol.make_camera_images(o, polarizance_real, polarization_angle_real, n_realizations=parser["n_realizations"], add_noise=True) for o in obs_biref]
+    obs_orig = [zodipol.make_camera_images(o, polarizance_real, polarization_angle_real, n_realizations=parser["n_realizations"],
+                                           add_noise=False) for o in obs_biref]
     images_orig = zodipol.post_process_images(np.stack(obs_orig, axis=-1))
     return obs, images_orig, polarizance_real.reshape(-1, parser["n_polarization_ang"]), polarization_angle_spatial_diff.reshape((-1)), mueller_truth
+
+
+def get_initialization(p, mueller):
+    p_noise = 0.02 + 0.01 * np.random.randn(p.shape[0])
+    mueller_noise = 0.02 * np.random.randn(*mueller[:, :3, :3].shape)
+    p_res = np.clip(p[:, 0] + p_noise, 0, 1)[..., None].repeat(4, axis=-1)
+    mueller_res = mueller.copy()[..., :3, :3]
+    mueller_res += mueller_noise
+    mueller_res = np.clip(mueller_res, -1, 1)
+    return {'p': p_res, 'biref': mueller_res}
