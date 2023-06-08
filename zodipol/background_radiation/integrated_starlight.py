@@ -190,9 +190,9 @@ class IntegratedStarlightFactory:
         sky_coord = SkyCoord(lon, lat, unit=(u.deg, u.deg), frame='geocentricmeanecliptic', obstime=self.obs_time)
         try:
             result = self.visier.query_region(sky_coord, width=width)
+            result_table = result[0]
         except:
             return pd.DataFrame()
-        result_table = result[0]
         if as_dataframe:
             return result_table.to_pandas()
         return result_table  # only one catalog
