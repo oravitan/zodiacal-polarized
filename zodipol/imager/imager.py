@@ -17,12 +17,12 @@ class Imager:
     def __init__(self,
                  exposure_time=10 * u.s,
                  pixel_area=(3.45 * u.um) ** 2,
-                 lens_diameter=20.0 * u.mm,
+                 lens_diameter=80.0 * u.mm,  # 20.0 * u.mm
                  lens_focal_length=86.2 * u.mm,
                  optical_loss=0.96,
                  quantum_efficiency=30,
                  std_read=2.31,
-                 beta_t=3.51 * (u.s ** -1),
+                 beta_t=0.351 * (u.s ** -1),  # 3.51 * (u.s ** -1)
                  full_well=10500,
                  n_bits=10,
                  resolution=(2448, 2048)):
@@ -210,7 +210,7 @@ class Imager:
         observation_mat = obs.to_numpy(ndims=3)
         observation_biref = np.einsum('a...ij,a...jk->a...ik', biref_mat[..., :3, :3], observation_mat[..., None])
         I, Q, U = observation_biref[..., 0, 0], observation_biref[..., 1, 0], observation_biref[..., 2, 0]
-        return Observation(I, Q, U, theta=obs.theta, phi=obs.phi)
+        return Observation(I, Q, U, theta=obs.theta, phi=obs.phi, star_pixels=obs.star_pixels)
 
     def get_birefringence_mueller_matrix(self, birefringence_amount, birefringence_angle):
         pol_mueller = self._get_birefringence_polarizer_mat(birefringence_amount)

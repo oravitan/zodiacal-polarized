@@ -13,7 +13,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/scripts/camera_calibration_example.py" />
-    <option name="PARAMETERS" value="-res 300 200 --fov 5 -dir 90 -25 -nr 5 -par -ip exposure_time 10*u.s -du 1 --isl" />
+    <option name="PARAMETERS" value="-res 300 200 --fov 5 -dir 90 -35 -nr 10 -par -ip exposure_time 80*u.s -du 0 --isl --planetary" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

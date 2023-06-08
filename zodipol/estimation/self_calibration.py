@@ -26,17 +26,27 @@ class SelfCalibration(BaseCalibration):
         self.nan_mask = self.get_nan_mask(images_res_flat)
         self.initialize()
 
+    def calibrate(self, images_orig, n_itr=5, disable=False, callback=None, init=None, **kwargs):
+        """
+        Calibrate the images.
+        """
+        self.initialize(init)
+        self.obs = self.estimate_observations(images_orig)
+        return super().calibrate(images_orig, n_itr=n_itr, disable=disable, callback=callback, init=init, **kwargs)
+
     def _calibrate_itr(self, images, **kwargs):
         self.obs = self.estimate_observations(images)
         self.estimate_polarizance(images, **kwargs)
         self.estimate_birefringence(images, **kwargs)
 
     def estimate_polarizance(self, images, **kwargs):
-        super().estimate_polarizance(images)
-        self.p = self.p - np.nanmax(self.p[~self.nan_mask]) + 1
+        super().estimate_polarizance(images, **kwargs)
+        max_p = (kwargs['max_p'] if 'max_p' in kwargs else 1)
+        self.p = self.p - np.quantile(self.p[~self.nan_mask], 0.95) + max_p
+        self.p = np.clip(self.p, 0, 1)
 
     def estimate_birefringence(self, images, kernel_size: int = None, normalize_eigs: bool = False, **kwargs):
-        super().estimate_birefringence(images, kernel_size=kernel_size, normalize_eigs=normalize_eigs)
+        super().estimate_birefringence(images, kernel_size=kernel_size, normalize_eigs=normalize_eigs, **kwargs)
 
     def get_nan_mask(self, images):
         """
