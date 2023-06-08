@@ -17,12 +17,12 @@ class Imager:
     def __init__(self,
                  exposure_time=10 * u.s,
                  pixel_area=(3.45 * u.um) ** 2,
-                 lens_diameter=20.0 * u.mm,
+                 lens_diameter=80.0 * u.mm,  # 20.0 * u.mm
                  lens_focal_length=86.2 * u.mm,
                  optical_loss=0.96,
                  quantum_efficiency=30,
                  std_read=2.31,
-                 beta_t=3.51 * (u.s ** -1),
+                 beta_t=0.351 * (u.s ** -1),  # 3.51 * (u.s ** -1)
                  full_well=10500,
                  n_bits=10,
                  resolution=(2448, 2048)):

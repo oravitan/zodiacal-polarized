@@ -33,7 +33,7 @@ def calibration(n_rotations: int, n_itr: int, zodipol: Zodipol, parser: ArgParse
     calib = Calibration(obs_comb, zodipol, parser)
     init = {'eta': polarization_angle_real, **initialization}
     p, eta, biref, cost, itr_cost = calib.calibrate(images_orig, n_itr=n_itr, callback=callback_partial, init=init, disable=disable,
-                                                    normalize_eigs=True, kernel_size=5)  # , normalize_eigs=True
+                                                    normalize_eigs=True)  # , normalize_eigs=True
     est_images = np.stack([calib.forward_model(o) for o in obs_comb], axis=-1)
     p_cost, mueller_cost, p_std, mueller_std, p_mad, mueller_mad = list(zip(*itr_cost))
     est_values = {'p': p, 'eta': eta, 'biref': biref, 'images': est_images}
@@ -99,7 +99,7 @@ def plot_calibration_exp(n_rotations=30, n_itr=10, exposure_time_list=None):
 if __name__ == '__main__':
     # set params
     logging.info(f'Started run.')
-    visualize_calibration(n_rotations=10, n_itr=30)
+    visualize_calibration(n_rotations=30, n_itr=10)
     plot_calibration_nbos(n_itr=30, n_rotations_list=None)
     plot_calibration_exp(n_rotations=30, n_itr=30, exposure_time_list=None)
     pass

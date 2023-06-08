@@ -40,10 +40,11 @@ def run_self_calibration(n_rotations, n_itr, zodipol, parser, disable=False, dir
     images_res_flat = images_res.reshape((np.prod(parser["resolution"]), parser["n_polarization_ang"], n_rotations))
     images_res_flat = zodipol.post_process_images(images_res_flat)
     initialization = get_initialization(polarizance_real, mueller_truth)
+    star_pixels = np.stack([o.star_pixels for o in obs_truth], axis=-1)
     cost_itr, est_values, clbk_itr = self_calibrate(zodipol, parser, rotation_list, images_res_flat,
                                                     polarizance_real, polarization_angle_real,
                                                     mueller_truth, n_itr=n_itr, disable=disable, max_p=np.max(polarizance_real),
-                                                    initialization=initialization, **kwargs)
+                                                    initialization=initialization, star_pixels=star_pixels, **kwargs)
     true_values = {'images': images_res_flat, 'p': polarizance_real, 'eta': polarization_angle_real, 'biref': mueller_truth}
     return cost_itr, est_values, true_values, clbk_itr
 
@@ -76,6 +77,7 @@ def main_show_cost(n_rotations=10, n_itr=10):
     plot_deviation_comp(parser, true_values["p"][..., 0], est_values['p'][..., 0], set_colors=True,
                         saveto='outputs/self_calibration_polarizance_est.pdf')
     plot_mueller(est_values['biref'], parser, cbar=True, saveto='outputs/self_calib_birefringence_est.pdf')
+    pass
 
 
 def main_plot_n_obs(n_itr=10, n_rotations_list=None):
@@ -152,7 +154,7 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None):
 
 
 def main():
-    main_show_cost(n_rotations=30, n_itr=20)
+    main_show_cost(n_rotations=30, n_itr=10)
     cost_n_obs = main_plot_n_obs(n_itr=20)
     cost_expo = main_plot_exp_time(n_itr=20)
     cost_dir_unc = main_plot_uncertainty(n_itr=10)

@@ -102,7 +102,7 @@ class BaseCalibration:
         """
         pass
 
-    def estimate_polarizance(self, images: u.Quantity, kernel_size=None, **kwargs) -> None:
+    def estimate_polarizance(self, images: u.Quantity, kernel_size=None, star_pixels=None, **kwargs) -> None:
         """
         Estimate the polarization of every pixel.
         """
@@ -113,7 +113,8 @@ class BaseCalibration:
         stokes_tag = np.einsum('...ij,...jk->...ik', stokes, mueller)
 
         # WLS
-        star_pixels = np.stack([o.star_pixels for o in self.obs], axis=-1)
+        if star_pixels is None:
+            star_pixels = np.stack([o.star_pixels for o in self.obs], axis=-1)
         stokes_tag = np.einsum('ij...,ij->ij...', stokes_tag, ~star_pixels)
         intensity = np.einsum('i...j,ij->i...j', intensity, ~star_pixels)
 
@@ -135,7 +136,8 @@ class BaseCalibration:
         p_est = p_est.repeat(4, axis=-1)
         self.p = p_est
 
-    def estimate_birefringence(self, images: u.Quantity, kernel_size: int = None, normalize_eigs: bool = False, **kwargs) -> None:
+    def estimate_birefringence(self, images: u.Quantity, kernel_size: int = None, normalize_eigs: bool = False,
+                               star_pixels=None, **kwargs) -> None:
         """
         Estimate the birefringence of every pixel.
         """
@@ -147,7 +149,8 @@ class BaseCalibration:
         stokes = np.stack([o.to_numpy(ndims=3) for o in self.obs], axis=-1).value
 
         # WLS
-        star_pixels = np.stack([o.star_pixels for o in self.obs], axis=-1)
+        if star_pixels is None:
+            star_pixels = np.stack([o.star_pixels for o in self.obs], axis=-1)
         stokes = np.einsum('i...j,ij->i...j', stokes, ~star_pixels)
         intensity = np.einsum('ij...,ij->ij...', intensity, ~star_pixels)
 
@@ -173,12 +176,13 @@ class BaseCalibration:
         if kernel_size is not None:
             biref_elems = self._biref_smooth_kernel(biref_elems, kernel_size, resolution=self.parser["resolution"])
 
-        if normalize_eigs:
-            biref_elems = self._biref_normalize_eigs(biref_elems)
-            biref_elems /= np.clip(np.abs(biref_elems).max(), 1, None)
-
         biref = np.stack((np.stack((biref_elems[..., 0], biref_elems[..., 1]), axis=-1),
                           np.stack((biref_elems[..., 1], biref_elems[..., 2]), axis=-1)), axis=-1)
+
+        if normalize_eigs:
+            biref = self._biref_normalize_eigs(biref)
+            biref_elems /= np.clip(np.abs(biref_elems).max(), 1, None)
+
         biref = np.clip(biref, -1, 1)
 
         # set necessary values of biref
@@ -188,14 +192,12 @@ class BaseCalibration:
 
     @staticmethod
     def _biref_normalize_eigs(biref_elems):
-        ac_diff = np.clip(biref_elems[:, 0] + biref_elems[:, 2], 0, 2) - (biref_elems[:, 0] + biref_elems[:, 2])
-        biref_elems[:, 0] += ac_diff / 2
-        biref_elems[:, 2] += ac_diff / 2
+        W, V = np.linalg.eig(biref_elems)
+        biref_eigs = W / W.max(axis=1, keepdims=True)
+        biref_res = np.einsum('...ij,...j,...kj->...ik', V, biref_eigs, V)
 
-        # b2_max = abs(2 - biref_elems[:, 0] - biref_elems[:, 2])
-        # biref_elems[:, 1] = np.clip(biref_elems[:, 1], -b2_max, b2_max)
-        biref_elems = np.nan_to_num(biref_elems, nan=0)
-        return biref_elems
+        biref_res = np.nan_to_num(biref_res, nan=0)
+        return biref_res
 
     @staticmethod
     def _biref_smooth_kernel(biref: np.ndarray, kernel_size: int, resolution):
