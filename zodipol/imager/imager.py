@@ -22,7 +22,7 @@ class Imager:
                  optical_loss=0.96,
                  quantum_efficiency=30,
                  std_read=2.31,
-                 beta_t=0.351 * (u.s ** -1),  # 3.51 * (u.s ** -1)
+                 beta_t=3.51 * (u.s ** -1),
                  full_well=10500,
                  n_bits=10,
                  resolution=(2448, 2048)):

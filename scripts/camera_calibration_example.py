@@ -50,8 +50,8 @@ def visualize_calibration(n_rotations=30, n_itr=10):
     true_values, est_values, cost, p_cost, mueller_cost = calibration(n_rotations, n_itr, zodipol, parser)
     plot_cost_itr(cost, p_cost, mueller_cost, saveto="outputs/calib_cost_vs_iteration.pdf")
     plot_deviation_comp(parser, true_values["p"][:, 0], est_values["p"][:, 0], saveto="outputs/calib_p_estimation.pdf")
-    plot_mueller(est_values["biref"], parser, cbar=True, saveto='outputs/calibration_biref_matrix_reconst.pdf')
-    plot_mueller(true_values["biref"], parser, cbar=True, saveto='outputs/mueller_matrix_example.pdf')
+    plot_mueller(est_values["biref"] - np.eye(3)[None, ...], parser, cbar=True, saveto='outputs/calibration_biref_matrix_reconst.pdf')
+    plot_mueller(true_values["biref"][..., :3, :3] - np.eye(3)[None, ...], parser, cbar=True, saveto='outputs/mueller_matrix_example.pdf')
     pass
 
 

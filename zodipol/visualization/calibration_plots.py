@@ -75,11 +75,12 @@ def plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto=None):
     plt.show()
 
 
-def plot_res_comp_plot(x_value, p_mse, biref_mse, saveto=None, xlabel=None, ylim1=None, ylim2=None, type='RMSE'):
+def plot_res_comp_plot(x_value, p_mse, biref_mse, saveto=None, xlabel=None, ylim1=None, ylim2=None, type='RMSE',
+                       p_mse_err=None, biref_mse_err=None):
     fig, ax = plt.subplots(1, 1, figsize=(6, 2))
-    ax.plot(x_value, p_mse, lw=2, c='b')  # ax.semilogy(x_value, p_mse, lw=2, c='b')
+    ax.errorbar(x_value, p_mse, yerr=p_mse_err, lw=2, c='b', capsize=3)
     ax2 = ax.twinx()
-    ax2.plot(x_value, biref_mse, lw=2, c='r')  # ax2.semilogy(x_value, biref_mse, lw=2, c='r')
+    ax2.errorbar(x_value, biref_mse, yerr=biref_mse_err, lw=2, c='r', capsize=3)  # ax2.semilogy(x_value, biref_mse, lw=2, c='r')
     ax.grid()
     ax.set_xlabel(xlabel, fontsize=16)
     ax.tick_params(axis='x', labelsize=16)

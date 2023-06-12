@@ -76,13 +76,13 @@ def main_show_cost(n_rotations=10, n_itr=10):
     plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto='outputs/self_calibration_cost_itr.pdf')
     plot_deviation_comp(parser, true_values["p"][..., 0], est_values['p'][..., 0], set_colors=True,
                         saveto='outputs/self_calibration_polarizance_est.pdf')
-    plot_mueller(est_values['biref'], parser, cbar=True, saveto='outputs/self_calib_birefringence_est.pdf')
+    plot_mueller(est_values['biref'] - np.eye(3)[None, ...], parser, cbar=True, saveto='outputs/self_calib_birefringence_est.pdf')
     pass
 
 
 def main_plot_n_obs(n_itr=10, n_rotations_list=None):
     if n_rotations_list is None:
-        n_rotations_list = [4, 6, 10, 14, 18, 22, 26, 30]
+        n_rotations_list = np.linspace(10, 30, 10, endpoint=True, dtype=int)
     parser = ArgParser()
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
@@ -93,20 +93,24 @@ def main_plot_n_obs(n_itr=10, n_rotations_list=None):
     A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
     res_cost = []
     for n_rotations in tqdm(n_rotations_list):
-        cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
-                                                                           disable=True, normalize_eigs=True)
-        mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
-        res_cost.append((cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1])
-    rot_intensity_mse, rot_p_mse, rot_biref_mse, rot_p_std, rot_biref_std, rot_p_mad, rot_biref_mad = list(
-        zip(*res_cost))
+        n_rot_res = []
+        for n_itr in range(5):
+            cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
+                                                                               disable=True, normalize_eigs=True, kernel_size=5)
+            mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
+            n_rot_res.append((cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1])
+        res_cost.append(n_rot_res)
+    res_cost_arr = np.array(res_cost)
+    rot_p_mse, p_err = np.mean(res_cost_arr[..., 1], axis=1), np.std(res_cost_arr[..., 1], axis=1)
+    rot_biref_mse, biref_err = np.mean(res_cost_arr[..., 2], axis=1), np.std(res_cost_arr[..., 2], axis=1)
     plot_res_comp_plot(n_rotations_list, rot_p_mse, rot_biref_mse, saveto="outputs/calib_mse_n_rotations.pdf",
-                       xlabel="K", ylim1=(0, None), ylim2=(0, None))
+                       xlabel="K", ylim1=(0, None), ylim2=(0, None), p_mse_err=p_err, biref_mse_err=biref_err)
     return res_cost
 
 
-def main_plot_exp_time(n_rotations=10, n_itr=10, exposure_time_list=None):
+def main_plot_exp_time(n_rotations=30, n_itr=10, exposure_time_list=None):
     if exposure_time_list is None:
-        exposure_time_list = np.logspace(np.log10(2), np.log10(50), 10)
+        exposure_time_list = np.logspace(np.log10(10), np.log10(60), 10)
     parser = ArgParser()
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
@@ -117,14 +121,20 @@ def main_plot_exp_time(n_rotations=10, n_itr=10, exposure_time_list=None):
     # now estimate how well we calibration based on exposure time
     res_cost = []
     for exposure_time in tqdm(exposure_time_list):
-        zodipol.imager.exposure_time = exposure_time * u.s
-        cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
-                                                                           disable=True, normalize_eigs=True)
-        mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
-        res_cost.append((cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1])
-    ex_intensity_mse, ex_p_mse, ex_biref_mse, ex_p_std, ex_biref_std, ex_p_mad, ex_biref_mad = list(zip(*res_cost))
+        n_ex_res = []
+        for n_itr in range(5):
+            zodipol.imager.exposure_time = exposure_time * u.s
+            cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
+                                                                               disable=True, normalize_eigs=True, kernel_size=5)
+            mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
+            n_ex_res.append((cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1])
+        res_cost.append(n_ex_res)
+    res_cost_arr = np.array(res_cost)
+    ex_p_mse, p_err = np.mean(res_cost_arr[..., 1], axis=1), np.std(res_cost_arr[..., 1], axis=1)
+    ex_biref_mse, biref_err = np.mean(res_cost_arr[..., 2], axis=1), np.std(res_cost_arr[..., 2], axis=1)
+
     plot_res_comp_plot(exposure_time_list, ex_p_mse, ex_biref_mse, saveto="outputs/calib_mse_exposure_time.pdf",
-                       xlabel="$\Delta t \;(s)$", ylim1=(0, None), ylim2=(0, None))
+                       xlabel="$\Delta t \;(s)$", ylim1=(0, None), ylim2=(0, None), p_mse_err=p_err, biref_mse_err=biref_err)
     return res_cost
 
 
@@ -142,7 +152,7 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None):
     res_cost = []
     for direction_error in tqdm(direction_error_list):
         cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
-                                                                           disable=True, normalize_eigs=True,
+                                                                           disable=True, normalize_eigs=True, kernel_size=5,
                                                                            direction_uncertainty=direction_error * u.deg)
         mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
         res_cost.append((cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1])
@@ -154,10 +164,10 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None):
 
 
 def main():
-    main_show_cost(n_rotations=30, n_itr=10)
-    cost_n_obs = main_plot_n_obs(n_itr=20)
-    cost_expo = main_plot_exp_time(n_itr=20)
-    cost_dir_unc = main_plot_uncertainty(n_itr=10)
+    main_show_cost(n_rotations=30, n_itr=5)
+    cost_n_obs = main_plot_n_obs(n_itr=5)
+    cost_expo = main_plot_exp_time(n_rotations=30, n_itr=5)
+    # cost_dir_unc = main_plot_uncertainty(n_rotations=30, n_itr=5)
     pass
 
 
