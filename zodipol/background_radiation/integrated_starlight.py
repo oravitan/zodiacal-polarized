@@ -1,3 +1,4 @@
+import logging
 import os
 import numpy as np
 import pandas as pd
@@ -8,12 +9,13 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 from tqdm import tqdm
 from scipy.optimize import least_squares
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 from scipy.interpolate import interp1d
 from itertools import repeat
+from retry import retry
+from requests import ConnectTimeout, ConnectionError
 
 from zodipol.utils.paths import BACKGROUND_ISL_FLUX_FILE
-
 
 BACKGROUND_ISL_FLUX = pd.read_csv(BACKGROUND_ISL_FLUX_FILE, index_col=0)
 
@@ -168,7 +170,8 @@ class IntegratedStarlightFactory:
         :param columns: columns to query
         """
         self.visier = Vizier(columns=columns, catalog=self.catalog)
-        self.visier.ROW_LIMIT = -1
+        self.visier.cache_location = '/dev/null'
+        self.visier.ROW_LIMIT = 30000  # -1
 
     def _init_flux_data(self):
         """
@@ -177,7 +180,9 @@ class IntegratedStarlightFactory:
         j_freq, h_freq, k_freq = (self.isl_flux["Lambda"].to_numpy() * u.um).to(u.Hz, equivalencies=u.spectral()).value
         self.freq = np.array((j_freq, h_freq, k_freq))
 
-    def query_direction(self, lon: float, lat: float, width=None, as_dataframe=True):
+    @retry(ConnectTimeout, delay=5, jitter=5, logger=logging.getLogger(__name__))
+    @retry(ConnectionError, delay=5, jitter=5, logger=logging.getLogger(__name__))
+    def query_direction(self, lon, lat, width=None, as_dataframe=True, request_id=None):
         """
         Query the Vizier catalog in a given direction
         :param lon: galactic longitude
@@ -186,18 +191,27 @@ class IntegratedStarlightFactory:
         :param as_dataframe: return as pandas dataframe
         :return: query result
         """
+        if request_id is not None:
+            logging.info(f"Querying Vizier catalog {self.catalog} for request {request_id}")
         width = width if width is not None else self.pixel_size * u.deg  # if not specified, use pixel size
         sky_coord = SkyCoord(lon, lat, unit=(u.deg, u.deg), frame='geocentricmeanecliptic', obstime=self.obs_time)
-        try:
-            result = self.visier.query_region(sky_coord, width=width)
-            result_table = result[0]
-        except:
-            return pd.DataFrame()
+
+        for ii in range(3):
+            result = self.visier.query_region(sky_coord, width=width, cache=False)  # cache=False
+            if len(result) > 0:
+                break
+            logging.warning(f"Vizier catalog {self.catalog} returned emptry result for {request_id}")
+
+        if len(result) == 0:  # after retrying
+            logging.warning(f"Empty Vizier catalog {self.catalog} query result for request {request_id}")
+            return pd.DataFrame({'_q': []})
+
+        result_table = result[0]
         if as_dataframe:
             return result_table.to_pandas()
         return result_table  # only one catalog
 
-    def build_skymap(self, frequency: float, width: u.Quantity = None, show_tqdm: bool = True, parallel: bool = True):
+    def build_skymap(self, frequency: float, width: u.Quantity = None, parallel: bool = True, request_size=1000):
         """
         Build the integrated starlight skymap
         :param frequency: frequency (Hz)
@@ -208,31 +222,32 @@ class IntegratedStarlightFactory:
         """
         width = width if width is not None else self.pixel_size * u.deg
         lon, lat = self.get_pixels_directions()
-        return self.build_dirmap(lon, lat, frequency=frequency, width=width, show_tqdm=show_tqdm, parallel=parallel)
+        return self.build_dirmap(lon, lat, frequency=frequency, width=width, parallel=parallel, request_size=request_size)
 
-    def build_dirmap(self, lon, lat, frequency: float, width: u.Quantity = None, show_tqdm: bool = True, parallel: bool = True):
+    def build_dirmap(self, lon, lat, frequency: float, width: u.Quantity = None,
+                     parallel: bool = True, request_size=1000):
+        logging.info(f'Building ISL skymap for {len(self.pixels)} pixels.')
+        array_split = np.array_split(np.stack([lon, lat], axis=-1), len(lon) // request_size)
         if parallel:
-            with Pool() as p:
-                flux = p.starmap(self.estimate_direction_flux,
-                                 tqdm(zip(lon, lat, repeat(frequency), repeat(width)), total=len(lon),
-                                      disable=not show_tqdm))
+            n_cpu = cpu_count() - 1
+            logging.info(f'Using {len(array_split)} requests parallel in {n_cpu} pools.')
+            with Pool(30) as p:
+                flux_list = p.starmap(self.estimate_direction_flux_parallel, zip(array_split, range(len(array_split)),
+                                                                                 repeat(frequency), repeat(width)))
+                flux = np.concatenate(flux_list)
         else:
-            flux = [self.estimate_direction_flux(lon, lat, frequency, width) for lon, lat in
-                    tqdm(zip(lon, lat), total=len(lon), disable=not show_tqdm)]
+            logging.info(f'Using {len(array_split)} requests.')
+            flux = [self.estimate_direction_flux_parallel(lonlat, id, frequency, width) for id,lonlat in enumerate(array_split)]
         isl = IntegratedStarlight(u.Quantity(flux), frequency)
         return isl
 
-    # def build_fov(self, center_lon, center_lat, frequency: float, fov: u.Quantity, resolution, show_tqdm: bool = True, parallel: bool = True):
-    #     result = self.query_direction(center_lon, center_lat, fov)
-    #     x_res, y_res = fov.value / np.array(resolution)
-    #     min_lon, min_lat = center_lon - fov / 2, center_lat - fov / 2
-    #     result = result.assign(x=(np.rad2deg(np.angle(np.exp(1j*np.deg2rad(result.GLON) - 1j*np.deg2rad(min_lon)))) / x_res).astype(int),
-    #                            y=(np.rad2deg(np.angle(np.exp(1j*np.deg2rad(result.GLAT) - 1j*np.deg2rad(min_lat)))) / y_res).astype(int))
-    #     result = result[(result[["x", "y"]] >= 0).all(axis=1) & (result["x"] < resolution[1]) & (result["y"] < resolution[1])]
-    #
-    #     flux_px = u.Quantity(flux) / self.pixel_size ** 2
-    #     isl = IntegratedStarlight(flux_px, frequency)
-    #     return isl
+    def estimate_direction_flux_parallel(self, lonlat, request_id, frequency, width):
+        lon, lat = lonlat[..., 0], lonlat[..., 1]
+        query_res = self.query_direction(lon, lat, width, request_id=request_id)
+        res = []
+        for ii in tqdm(range(1, len(lon)+1), desc=f"Request {request_id}"):
+            res.append(self.estimate_direction_flux(query_res[query_res._q == ii], frequency))
+        return res
 
     def process_query(self, result):
         """
@@ -254,7 +269,7 @@ class IntegratedStarlightFactory:
         """
         return hp.pix2ang(self.nside, self.pixels, lonlat=True)
 
-    def estimate_direction_flux(self, lon, lat, frequency, width=None, resample_size=10):
+    def estimate_direction_flux(self, query_result, frequency, resample_size=10):
         """
         Estimate the flux in a given direction
         :param lon: galactic longitude
@@ -265,10 +280,9 @@ class IntegratedStarlightFactory:
         :return: flux
         """
         # get the flux in the selected direction
-        result = self.query_direction(lon, lat, width)
-        if len(result) == 0:
+        if len(query_result) == 0:
             return np.zeros(frequency.shape) * u.Unit('nW / m^2 um sr')
-        flux_default_freq = self.process_query(result)
+        flux_default_freq = self.process_query(query_result)
 
         # bootstrap the flux
         if flux_default_freq.shape[1] > resample_size:
