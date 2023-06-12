@@ -94,7 +94,7 @@ def main_plot_n_obs(n_itr=10, n_rotations_list=None):
     res_cost = []
     for n_rotations in tqdm(n_rotations_list):
         n_rot_res = []
-        for n_itr in range(5):
+        for ii in range(15):
             cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                                disable=True, normalize_eigs=True, kernel_size=5)
             mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
@@ -122,7 +122,7 @@ def main_plot_exp_time(n_rotations=30, n_itr=10, exposure_time_list=None):
     res_cost = []
     for exposure_time in tqdm(exposure_time_list):
         n_ex_res = []
-        for n_itr in range(5):
+        for ii in range(15):
             zodipol.imager.exposure_time = exposure_time * u.s
             cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                                disable=True, normalize_eigs=True, kernel_size=5)
@@ -151,15 +151,21 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None):
     A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
     res_cost = []
     for direction_error in tqdm(direction_error_list):
-        cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
-                                                                           disable=True, normalize_eigs=True, kernel_size=5,
-                                                                           direction_uncertainty=direction_error * u.deg)
-        mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
-        res_cost.append((cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1])
-    rot_intensity_mse, dir_p_mse, dir_biref_mse, dir_p_std, dir_biref_std, dir_p_mad, dir_biref_mad = list(
-        zip(*res_cost))
+        dir_err = []
+        for ii in range(15):
+            cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
+                                                                               disable=True, normalize_eigs=True,
+                                                                               kernel_size=5,
+                                                                               direction_uncertainty=direction_error * u.deg)
+            mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
+            dir_err.append((cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1])
+        res_cost.append(dir_err)
+    res_cost_arr = np.array(res_cost)
+    dir_p_mse, p_err = np.mean(res_cost_arr[..., 1], axis=1), np.std(res_cost_arr[..., 1], axis=1)
+    dir_biref_mse, biref_err = np.mean(res_cost_arr[..., 2], axis=1), np.std(res_cost_arr[..., 2], axis=1)
+
     plot_res_comp_plot(direction_error_list, dir_p_mse, dir_biref_mse, saveto="outputs/calib_mse_direction_error.pdf",
-                       xlabel="Direction Error (deg)")
+                       xlabel="Direction Error (deg)", ylim1=(0, None), ylim2=(0, None), p_mse_err=p_err, biref_mse_err=biref_err)
     return res_cost
 
 
@@ -167,7 +173,7 @@ def main():
     main_show_cost(n_rotations=30, n_itr=5)
     cost_n_obs = main_plot_n_obs(n_itr=5)
     cost_expo = main_plot_exp_time(n_rotations=30, n_itr=5)
-    # cost_dir_unc = main_plot_uncertainty(n_rotations=30, n_itr=5)
+    cost_dir_unc = main_plot_uncertainty(n_rotations=30, n_itr=5)
     pass
 
 
