@@ -9,9 +9,7 @@ from astropy.constants import c
 
 from zodipol.utils.math import ang2vec, vec2ang, get_c2w, get_w2c
 from zodipol.zodipol.observation import Observation
-from zodipol.mie_scattering.mie_scattering_model import MieScatteringModel
 from zodipol.zodipy_local.zodipy.zodipy import Zodipy, IQU_to_image
-from zodipol.utils.math import get_rotation_matrix
 from zodipol.imager.imager import Imager
 from zodipol.background_radiation import IntegratedStarlight, PlanetaryLight, IntegratedStarlightFactory
 
@@ -52,7 +50,11 @@ class Zodipol:
         planets_skymap = self._get_planetary_light_ang(theta_vec, phi_vec, obs_time)
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
         I += planets_skymap + isl_map
-        return Observation(I, Q, U, theta=theta_vec, phi=phi_vec, roll=0).change_roll(roll.to('rad').value)
+        if isinstance((isl_map + planets_skymap), u.Quantity):
+            star_pixels = ((isl_map + planets_skymap).to(I.unit).value > 0.01).any(axis=1)
+        else:
+            star_pixels = None
+        return Observation(I, Q, U, theta=theta_vec, phi=phi_vec, roll=0, star_pixels=star_pixels).change_roll(roll.to('rad').value)
 
     def create_full_sky_observation(self, nside: int = 64, obs_time: Time | str = Time("2022-06-14"),):
         obs_time = (Time(obs_time) if not isinstance(obs_time, Time) else obs_time)  # Observation time
@@ -65,7 +67,11 @@ class Zodipol:
         planets_skymap = self._get_planetary_light_map(nside, obs_time)
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
         I += planets_skymap + isl_map
-        return Observation(I, Q, U)
+        if isinstance((isl_map + planets_skymap), u.Quantity):
+            star_pixels = ((isl_map + planets_skymap).to(I.unit).value > 0.01).any(axis=1)
+        else:
+            star_pixels = None
+        return Observation(I, Q, U, star_pixels=star_pixels)
 
     def make_camera_images_multicolor(self, *args, **kwargs):
         colors = self.imager.get_pixel_colors()
@@ -126,7 +132,7 @@ class Zodipol:
             if fillna is not None:
                 camera_intensity_real = np.nan_to_num(camera_intensity_real, nan=fillna * camera_intensity_real.unit)
             obs_combine = Observation.from_image(camera_intensity_real, polarizance, polarization_angle,
-                                                 theta=obs.theta, phi=obs.phi, roll=obs.roll)
+                                                 theta=obs.theta, phi=obs.phi, roll=obs.roll, star_pixels=obs.star_pixels)
             obs_res.append(obs_combine)
         return obs_res
 

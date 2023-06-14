@@ -8,7 +8,7 @@ import astropy.units as u
 from zodipol.utils.math import align_images, get_rotated_image
 from zodipol.estimation.base_calibration import BaseCalibration
 from zodipol.zodipol import Observation
-from zodipol.mie_scattering.mueller_matrices import get_rotation_mueller_matrix
+from zodipol.utils.mueller_matrices import get_rotation_mueller_matrix
 
 
 class SelfCalibration(BaseCalibration):
@@ -26,21 +26,55 @@ class SelfCalibration(BaseCalibration):
         self.nan_mask = self.get_nan_mask(images_res_flat)
         self.initialize()
 
+    def calibrate(self, images_orig, n_itr=5, disable=False, callback=None, init=None, **kwargs):
+        """
+        Calibrate the images.
+        :param images_orig: original images
+        :param n_itr: number of iterations
+        :param disable: disable progress bar
+        :param callback: callback function
+        :param init: initial guess for the calibration parameters
+        :param kwargs: additional keyword arguments
+        """
+        self.initialize(init)
+        self.obs = self.estimate_observations(images_orig)
+        return super().calibrate(images_orig, n_itr=n_itr, disable=disable, callback=callback, init=init, **kwargs)
+
     def _calibrate_itr(self, images, **kwargs):
+        """
+        Perform a single iteration of the calibration.
+        :param images: original images
+        :param kwargs: additional keyword arguments
+        """
         self.obs = self.estimate_observations(images)
         self.estimate_polarizance(images, **kwargs)
         self.estimate_birefringence(images, **kwargs)
 
     def estimate_polarizance(self, images, **kwargs):
-        super().estimate_polarizance(images)
-        self.p = self.p - np.nanmax(self.p[~self.nan_mask]) + 1
+        """
+        Estimate the polarizance.
+        :param images: original images
+        :param kwargs: additional keyword arguments
+        """
+        super().estimate_polarizance(images, **kwargs)
+        max_p = (kwargs['max_p'] if 'max_p' in kwargs else 1)
+        self.p = self.p - np.quantile(self.p[~self.nan_mask], 0.95) + max_p
+        self.p = np.clip(self.p, 0, 1)
 
     def estimate_birefringence(self, images, kernel_size: int = None, normalize_eigs: bool = False, **kwargs):
-        super().estimate_birefringence(images, kernel_size=kernel_size, normalize_eigs=normalize_eigs)
+        """
+        Estimate the birefringence.
+        :param images: original images
+        :param kernel_size: kernel size for the smoothing of the birefringence
+        :param normalize_eigs: normalize the eigenvalues of the birefringence
+        :param kwargs: additional keyword arguments
+        """
+        super().estimate_birefringence(images, kernel_size=kernel_size, normalize_eigs=normalize_eigs, **kwargs)
 
     def get_nan_mask(self, images):
         """
         Get a mask of the images that are nan, because they're not contained within all input images.
+        :param images: original images
         """
         nan_imag = align_images(self.zodipol, self.parser, np.ones((images.shape[0], len(self.rotation_list))), self.rotation_list, fill_value=np.nan)
         nan_ind = np.isnan(nan_imag).any(axis=-1).squeeze()
@@ -63,6 +97,8 @@ class SelfCalibration(BaseCalibration):
     def estimate_observations(self, images):
         """
         Estimate the observations Stokes vectors from the images.
+        :param images: original images
+        :return: estimated observations
         """
         rotation_list = self.rotation_list
         interp_images_res = self.aligned_images
@@ -100,6 +136,9 @@ class SelfCalibration(BaseCalibration):
     def realign_observation(self, obs, roll):
         """
         Realign the observation from the reference frame to their original frame.
+        :param obs: observation to realign
+        :param roll: roll angle
+        :return: realigned observation
         """
         stokes_interp = get_rotated_image(self.zodipol, self.parser, obs.to_numpy(ndims=3), roll)
         obs_new = Observation(stokes_interp[..., 0], stokes_interp[..., 1], stokes_interp[..., 2], theta=obs.theta,
