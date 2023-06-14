@@ -2,7 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def plot_deviation_comp(parser, polarizance_real, polarizance_est_reshape, saveto=None, set_colors=False):
+def plot_deviation_comp(parser, polarizance_real, polarizance_est_reshape, saveto=None):
+    """
+    Plot the deviation of the estimated polarizance from the real polarizance.
+    :param parser: parser object
+    :param polarizance_real: real polarizance of the observation (GT)
+    :param polarizance_est_reshape: estimated polarizance of the observation
+    :param saveto: path to save the plot
+    """
     pol_mean_deviation = polarizance_real
     pol_est_mean_deviation = polarizance_est_reshape
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
@@ -19,7 +26,17 @@ def plot_deviation_comp(parser, polarizance_real, polarizance_est_reshape, savet
         plt.savefig(saveto, format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
 
+
 def plot_mueller(mueller, parser, cbar=False, saveto=None, vmin=None, vmax=None):
+    """
+    Plot a Mueller matrix.
+    :param mueller: Mueller matrix to plot, shape (..., :3, :3) or (..., :4, :4)
+    :param parser: parser object (for resolution)
+    :param cbar: whether to plot a colorbar
+    :param saveto: path to save the plot
+    :param vmin: min value for the colorbar (default: min value of the matrix)
+    :param vmax: max value for the colorbar (default: max value of the matrix)
+    """
     if vmin is None:
         vmin = np.nanmin(mueller)
     if vmax is None:
@@ -49,6 +66,13 @@ def plot_mueller(mueller, parser, cbar=False, saveto=None, vmin=None, vmax=None)
 
 
 def plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto=None):
+    """
+    Plot the cost function values for each iteration.
+    :param cost_itr: cost function values for each iteration
+    :param p_cost: polarizance cost function values for each iteration
+    :param mueller_cost: Mueller matrix cost function values for each iteration
+    :param saveto: path to save the plot
+    """
     fig, ax = plt.subplots(3, 1, figsize=(6, 5), sharex=True)
     ax[0].plot(cost_itr, lw=3)
     ax[0].set_ylabel('Intensity RMSE\n($electrons^2$)', fontsize=16)
@@ -77,6 +101,17 @@ def plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto=None):
 
 def plot_res_comp_plot(x_value, p_mse, biref_mse, saveto=None, xlabel=None, ylim1=None, ylim2=None, type='RMSE',
                        p_mse_err=None, biref_mse_err=None):
+    """
+    Plot the residual comparison plot.
+    :param x_value: x-axis values
+    :param p_mse: polarizance RMSE values
+    :param biref_mse: Mueller matrix RMSE values
+    :param saveto: path to save the plot
+    :param xlabel: x-axis label
+    :param ylim1: y-axis limits for polarizance RMSE
+    :param ylim2: y-axis limits for Mueller matrix RMSE
+    :param type: 'RMSE' or another string as function type
+    """
     fig, ax = plt.subplots(1, 1, figsize=(6, 2))
     ax.errorbar(x_value, p_mse, yerr=p_mse_err, lw=2, c='b', capsize=3)
     ax2 = ax.twinx()
@@ -89,14 +124,9 @@ def plot_res_comp_plot(x_value, p_mse, biref_mse, saveto=None, xlabel=None, ylim
     if type == 'RMSE':
         ax.set_ylabel("$\\left\\Vert\\hat{P}-P\\right\\Vert_{2}^{1}$", fontsize=16, c='b', rotation='horizontal', labelpad=35)
         ax2.set_ylabel("$\\left\\Vert\\hat{\\bf B}-{\\bf B}\\right\\Vert_{F}^{1}$", fontsize=16, c='r', rotation='horizontal', labelpad=35)
-    elif type == 'STD':
-        ax.set_ylabel("STD($\\hat{P}-P$)", fontsize=16, c='b', rotation='horizontal', labelpad=35)
-        ax2.set_ylabel("STD($\\hat{\\bf B}-{\\bf B}$)", fontsize=16, c='r', rotation='horizontal', labelpad=35)
-    elif type == 'MAD':
-        ax.set_ylabel("MAD($\\hat{P}-P$)", fontsize=16, c='b', rotation='horizontal', labelpad=35)
-        ax2.set_ylabel("MAD($\\hat{\\bf B}-{\\bf B}$)", fontsize=16, c='r', rotation='horizontal', labelpad=35)
     else:
-        raise ValueError("type must be one of 'RMSE', 'STD', 'MAD'")
+        ax.set_ylabel(type + "($\\hat{P}-P$)", fontsize=16, c='b', rotation='horizontal', labelpad=35)
+        ax2.set_ylabel(type + "($\\hat{\\bf B}-{\\bf B}$)", fontsize=16, c='r', rotation='horizontal', labelpad=35)
     fig.tight_layout()
     if ylim1 is not None:
         ax.set_ylim(*ylim1)

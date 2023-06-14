@@ -7,6 +7,14 @@ from scipy.interpolate import griddata
 
 
 def plot_satellite_image(image, title=None, resolution=None, saveto=None, **kwargs):
+    """
+    Plot a satellite image.
+    :param image: 2D or 3D image
+    :param title: title of the plot
+    :param resolution: resolution of the image
+    :param saveto: path to save the plot
+    :param kwargs: additional arguments to pass to plt.imshow
+    """
     title = title if title is not None else ""
     unit = str(image.unit) if hasattr(image, "unit") else ""
     image = image.value if hasattr(image, "value") else image
@@ -23,6 +31,13 @@ def plot_satellite_image(image, title=None, resolution=None, saveto=None, **kwar
 
 
 def plot_satellite_image_indices(image, n_plots, title=None, **kwargs):
+    """
+    Plot multiple satellite images on the last axis of the image.
+    :param image: 2D or 3D images (last axis is the image index)
+    :param n_plots: number of plots to show
+    :param title: title of the plot
+    :param kwargs: additional arguments to pass to plt.imshow
+    """
     for ii in np.linspace(0, image.shape[-1], n_plots, endpoint=False, dtype=int):
         title_cur = title
         if title is not None:
@@ -31,12 +46,26 @@ def plot_satellite_image_indices(image, n_plots, title=None, **kwargs):
 
 
 def plot_skymap_indices(skymap, n_plots, title=None, **kwargs):
+    """
+    Plot multiple skymaps on the last axis of the skymap.
+    :param skymap: 2D or 3D skymaps (last axis is the skymap index)
+    :param n_plots: number of plots to show
+    :param title: title of the plot
+    :param kwargs: additional arguments to pass to plt.imshow
+    """
     title = title if title is not None else ""
     for ii in np.linspace(0, skymap.shape[-1], n_plots, endpoint=False, dtype=int):
         plot_skymap(skymap[..., ii], title=title + " at index {}".format(ii), **kwargs)
 
 
 def plot_skymap(skymap, title=None, saveto=None, **kwargs):
+    """
+    Plot a skymap in Mollweide projection.
+    :param skymap: 1D or 2D skymap
+    :param title: title of the plot
+    :param saveto: path to save the plot
+    :param kwargs: additional arguments to pass to hp.mollview
+    """
     title = title if title is not None else ""
     hp.mollview(
         skymap,
@@ -55,6 +84,19 @@ def plot_skymap(skymap, title=None, saveto=None, **kwargs):
 
 
 def plot_skymap_multicolor(skymap, title=None, saveto=None, colorbar=False, log=False, vmin=None, vmax=None, figsize=(10, 6), gamma=1, **kwargs):
+    """
+    Plot a skymap in Mollweide projection in color (RGB).
+    :param skymap: 1D or 2D skymap
+    :param title: title of the plot
+    :param saveto: path to save the plot
+    :param colorbar: whether to show a colorbar
+    :param log: whether to plot the log of the skymap (useful for large dynamic range)
+    :param vmin: minimum value of the skymap (if None, use the minimum value of the skymap)
+    :param vmax: maximum value of the skymap (if None, use the maximum value of the skymap)
+    :param figsize: size of the figure (width, height)
+    :param gamma: gamma correction factor (1 for no correction)
+    :param kwargs: additional arguments to pass to hp.mollview
+    """
     if log:
         skymap = np.log10(skymap)
         vmin = (np.log10(vmin) if vmin is not None else None)

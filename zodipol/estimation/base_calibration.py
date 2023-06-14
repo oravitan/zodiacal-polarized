@@ -1,3 +1,6 @@
+"""
+This file contains the base class for the calibration of zodipol created images.
+"""
 import abc
 import numpy as np
 import astropy.units as u
@@ -31,6 +34,7 @@ class BaseCalibration:
     def initialize(self, init: dict = None):
         """
         Initialize the parameters of the calibration.
+        :param init: dictionary with initial values for the parameters
         """
         init = (init if init is not None else {})
 
@@ -52,8 +56,9 @@ class BaseCalibration:
 
     def forward_model(self, obs: Observation) -> u.Quantity:
         """
-        Calculate the forward model of the calibration.
-        This turns a stokes object into an image.
+        Calculate the forward model of the calibration. This turns a stokes object into an image.
+        :param obs: The observation object.
+        :return: The estimated image.
         """
         p = self.p.reshape((-1, self.parser["n_polarization_ang"]))
         eta = self.eta.reshape((-1, 1)) + self.parser["polarization_angle"][None, :]
@@ -64,6 +69,8 @@ class BaseCalibration:
     def get_rmse(self, images_orig: u.Quantity) -> float:
         """
         Calculate the mean squared error between the forward model and the original images.
+        :param images_orig: The original images.
+        :return: The mean squared error.
         """
         img_model = np.stack([self.forward_model(o) for o in self.obs], axis=-1)
         rmse = np.nanmean((img_model - images_orig) ** 2) ** 0.5
@@ -100,11 +107,14 @@ class BaseCalibration:
         """
         Perform one iteration of the calibration.
         """
-        pass
+        ...
 
     def estimate_polarizance(self, images: u.Quantity, kernel_size=None, star_pixels=None, **kwargs) -> None:
         """
         Estimate the polarization of every pixel.
+        :param images: The images.
+        :param kernel_size: The size of the kernel used for the uniform filter.
+        :param star_pixels: The pixels that belong to the star.
         """
         intensity = images.value
 
@@ -140,6 +150,10 @@ class BaseCalibration:
                                star_pixels=None, **kwargs) -> None:
         """
         Estimate the birefringence of every pixel.
+        :param images: The images.
+        :param kernel_size: The size of the kernel used for the uniform filter.
+        :param normalize_eigs: Normalize the eigenvalues of the birefringence matrix.
+        :param star_pixels: The pixels that belong to the star.
         """
         intensity = images.value.swapaxes(-1, -2)
         p = self.p  #[:, None]
@@ -192,6 +206,11 @@ class BaseCalibration:
 
     @staticmethod
     def _biref_normalize_eigs(biref_elems):
+        """
+        Normalize the eigenvalues of the birefringence matrix.
+        :param biref_elems: The birefringence matrix.
+        :return: The normalized birefringence matrix.
+        """
         W, V = np.linalg.eig(biref_elems)
         biref_eigs = W / W.max(axis=1, keepdims=True)
         biref_res = np.einsum('...ij,...j,...kj->...ik', V, biref_eigs, V)
@@ -201,6 +220,12 @@ class BaseCalibration:
 
     @staticmethod
     def _biref_smooth_kernel(biref: np.ndarray, kernel_size: int, resolution):
+        """
+        Smooth the birefringence matrix.
+        :param biref: The birefringence matrix.
+        :param kernel_size: The size of the kernel used for the uniform filter.
+        :param resolution: The resolution of the image.
+        """
         biref_resh = biref.reshape(resolution + list(biref.shape[1:]))
         biref_smooth = np.stack([uniform_filter(biref_resh[..., ii], size=kernel_size, mode='nearest') for ii in
                                  range(biref_resh.shape[-1])], axis=-1)

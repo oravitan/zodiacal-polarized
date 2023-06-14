@@ -82,7 +82,7 @@ def main_show_cost(n_rotations=10, n_itr=10):
 
 def main_plot_n_obs(n_itr=10, n_rotations_list=None):
     if n_rotations_list is None:
-        n_rotations_list = np.linspace(10, 30, 10, endpoint=True, dtype=int)
+        n_rotations_list = np.linspace(5, 30, 10, endpoint=True, dtype=int)
     parser = ArgParser()
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
@@ -94,7 +94,7 @@ def main_plot_n_obs(n_itr=10, n_rotations_list=None):
     res_cost = []
     for n_rotations in tqdm(n_rotations_list):
         n_rot_res = []
-        for ii in range(15):
+        for ii in range(3):
             cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                                disable=True, normalize_eigs=True, kernel_size=5)
             mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
@@ -122,7 +122,7 @@ def main_plot_exp_time(n_rotations=30, n_itr=10, exposure_time_list=None):
     res_cost = []
     for exposure_time in tqdm(exposure_time_list):
         n_ex_res = []
-        for ii in range(15):
+        for ii in range(3):
             zodipol.imager.exposure_time = exposure_time * u.s
             cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                                disable=True, normalize_eigs=True, kernel_size=5)
@@ -152,7 +152,7 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None):
     res_cost = []
     for direction_error in tqdm(direction_error_list):
         dir_err = []
-        for ii in range(15):
+        for ii in range(3):
             cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                                disable=True, normalize_eigs=True,
                                                                                kernel_size=5,
@@ -170,8 +170,8 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None):
 
 
 def main():
-    main_show_cost(n_rotations=30, n_itr=5)
-    cost_n_obs = main_plot_n_obs(n_itr=5)
+    # main_show_cost(n_rotations=30, n_itr=5)
+    # cost_n_obs = main_plot_n_obs(n_itr=5)
     cost_expo = main_plot_exp_time(n_rotations=30, n_itr=5)
     cost_dir_unc = main_plot_uncertainty(n_rotations=30, n_itr=5)
     pass

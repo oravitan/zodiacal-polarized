@@ -10,7 +10,6 @@ from astropy.constants import c
 from zodipol.utils.math import ang2vec, vec2ang, get_c2w, get_w2c
 from zodipol.zodipol.observation import Observation
 from zodipol.zodipy_local.zodipy.zodipy import Zodipy, IQU_to_image
-from zodipol.utils.math import get_rotation_matrix
 from zodipol.imager.imager import Imager
 from zodipol.background_radiation import IntegratedStarlight, PlanetaryLight, IntegratedStarlightFactory
 

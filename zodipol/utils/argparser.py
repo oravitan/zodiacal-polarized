@@ -1,3 +1,6 @@
+"""
+This module contains the ArgParser class, which is used to parse the command line arguments.
+"""
 import argparse
 import numpy as np
 import astropy.units as u
@@ -6,16 +9,29 @@ from astropy.time import Time
 
 class ArgParser:
     def __init__(self, *args, **kwargs):
+        """
+        :param args: arguments to pass to argparse.ArgumentParser
+        :param kwargs: keyword arguments to pass to argparse.ArgumentParser
+        """
         self.args = self.get_arguments(*args, **kwargs)
         self._parse_arguments()
 
     def __getitem__(self, item):
+        """
+        :param item: item to get
+        """
         return self.args.__getattribute__(item)
 
     def __dict__(self):
+        """
+        :return: dictionary of arguments
+        """
         return self.args.__dict__
 
     def _parse_arguments(self):
+        """
+        Parse arguments and convert them to the correct type.
+        """
         self.args.direction = np.array(self.args.direction, dtype=float) * u.deg
         self.args.direction_uncertainty = float(self.args.direction_uncertainty) * u.deg
         self.args.motion_blur = float(self.args.motion_blur) * u.deg
@@ -26,6 +42,11 @@ class ArgParser:
 
     @staticmethod
     def get_arguments(*args, **kwargs):
+        """
+        Get arguments from command line.
+        :param args: arguments to pass to argparse.ArgumentParser
+        :param kwargs: keyword arguments to pass to argparse.ArgumentParser
+        """
         parser = argparse.ArgumentParser()
         parser.add_argument('--nside', type=int, default=64, help='nside of healpy maps')
         parser.add_argument('--polarizance', '-pol', type=float, default=1., help='Polarizance of imager')

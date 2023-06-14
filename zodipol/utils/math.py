@@ -17,21 +17,13 @@ def normalize(x):
     return x / np.sum(x)
 
 
-def make_sorted(ll, *args):
-    ll_sorted = np.argsort(ll)
-    ll = ll[ll_sorted]
-    args = [arg[ll_sorted] for arg in args]
-    return ll, *args
-
-
-# vector calculations
-def get_rotation_matrix(v, theta):
-    x, y, z = v
-    W = np.array([[0, -z, y], [z, 0, -x], [-y, x, 0]])
-    return np.eye(3) + np.sin(theta) * W + (1 - np.cos(theta)) * W @ W
-
-
 def ang2vec(theta, phi):
+    """
+    Convert spherical coordinates to cartesian coordinates.
+    :param theta: polar angle
+    :param phi: azimuthal angle
+    :return: cartesian coordinates in the form of a numpy array of shape (..., 3)
+    """
     x = np.sin(theta) * np.cos(phi)
     y = np.sin(theta) * np.sin(phi)
     z = np.cos(theta)
@@ -39,6 +31,11 @@ def ang2vec(theta, phi):
 
 
 def vec2ang(arr):
+    """
+    Convert cartesian coordinates to spherical coordinates.
+    :param arr: cartesian coordinates in the form of a numpy array of shape (..., 3)
+    :return: polar angle and azimuthal angle
+    """
     x, y, z = arr[..., 0], arr[..., 1], arr[..., 2]
     theta = np.arccos(z)
     phi = np.arctan2(y, x)
@@ -46,6 +43,13 @@ def vec2ang(arr):
 
 
 def get_c2w(theta, phi, roll):
+    """
+    Get the transformation matrix from the camera frame to the world frame.
+    :param theta: polar angle
+    :param phi: azimuthal angle
+    :param roll: roll angle
+    :return: transformation matrix from the camera frame to the world frame
+    """
     rot_c_vec = ang2vec(theta, phi)
     if theta == np.pi/2 and phi == 0.0:
         rot_mat = np.identity(4)
@@ -58,6 +62,13 @@ def get_c2w(theta, phi, roll):
 
 
 def get_w2c(theta, phi, roll):
+    """
+    Get the transformation matrix from the world frame to the camera frame.
+    :param theta: polar angle
+    :param phi: azimuthal angle
+    :param roll: roll angle
+    :return: transformation matrix from the world frame to the camera frame
+    """
     return np.linalg.inv(get_c2w(theta, phi, roll))
 
 
@@ -99,6 +110,13 @@ def get_rotated_image(zodipol, parser, images, rotation_to, fill_value=0, how='n
 
 
 def _rotate_nearest(images, parser, rotation_to, zodipol, fill_value=0):
+    """
+    Rotate the images to the reference frame using nearest neighbor interpolation.
+    :param images: The images to rotate.
+    :param rotation_to: The rotation angle to rotate to.
+    :param zodipol: The zodipol object.
+    :param fill_value: The value to fill non-intersecting pixels.
+    """
     x_ind, y_ind, index_mask = _get_rotation_coords(parser, zodipol, rotation_to)
 
     images_resh = images.reshape(parser["resolution"] + list(images.shape[1:]))
@@ -108,6 +126,13 @@ def _rotate_nearest(images, parser, rotation_to, zodipol, fill_value=0):
 
 
 def _rotate_linear(images, parser, rotation_to, zodipol, fill_value=0):
+    """
+    Rotate the images to the reference frame using linear interpolation.
+    :param images: The images to rotate.
+    :param rotation_to: The rotation angle to rotate to.
+    :param zodipol: The zodipol object.
+    :param fill_value: The value to fill non-intersecting pixels.
+    """
     theta_from, phi_from = _get_cached_coords(*parser["direction"], 0 * u.deg, tuple(parser["resolution"]), zodipol)
     theta_to, phi_to = _get_cached_coords(*parser["direction"], rotation_to * u.deg, tuple(parser["resolution"]), zodipol)
 
@@ -124,6 +149,12 @@ def _rotate_linear(images, parser, rotation_to, zodipol, fill_value=0):
 
 @lru_cache
 def _get_rotation_coords(parser, zodipol, rotation_to):
+    """
+    Get the coordinates of the rotated image.
+    :param parser: The parser object.
+    :param zodipol: The zodipol object.
+    :param rotation_to: The rotation angle to rotate to.
+    """
     theta_from, phi_from = _get_cached_coords(*parser["direction"], 0 * u.deg, tuple(parser["resolution"]), zodipol)
     theta_to, phi_to = _get_cached_coords(*parser["direction"], rotation_to * u.deg, tuple(parser["resolution"]), zodipol)
 
@@ -140,5 +171,13 @@ def _get_rotation_coords(parser, zodipol, rotation_to):
 
 @lru_cache
 def _get_cached_coords(theta, phi, roll, resolution, zodipol):
+    """
+    Get the coordinates of the image (cached function to improve calculation time).
+    :param theta: The theta angle.
+    :param phi: The phi angle.
+    :param roll: The roll angle.
+    :param resolution: The resolution of the image.
+    :param zodipol: The zodipol object.
+    """
     return zodipol.create_sky_coords(theta=theta, phi=phi, roll=roll, resolution=resolution)
 

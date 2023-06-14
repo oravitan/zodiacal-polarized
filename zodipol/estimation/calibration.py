@@ -26,5 +26,11 @@ class Calibration(BaseCalibration):
         return images, self.p, self.eta, self.biref
 
     def _calibrate_itr(self, images_orig: u.Quantity, mode="all", **kwargs) -> None:
+        """
+        Perform a single iteration of the calibration.
+        :param images_orig: original images
+        :param mode: mode of the calibration
+        :param kwargs: additional keyword arguments
+        """
         self.estimate_polarizance(images_orig, **kwargs)
         self.estimate_birefringence(images_orig, **kwargs)
