@@ -1,3 +1,7 @@
+"""
+This module contains the Imager class, which is used to store the parameters of the imager
+and to simulate observations.
+"""
 import numpy as np
 import pandas as pd
 import astropy.units as u
@@ -8,6 +12,7 @@ from zodipol.zodipol.observation import Observation
 from zodipol.utils.paths import IMAGER_RESPONSE_FILE_RED, IMAGER_RESPONSE_FILE_GREEN, IMAGER_RESPONSE_FILE_BLUE
 
 
+# default paths
 IMAGER_RESPONSE_RED = pd.read_csv(IMAGER_RESPONSE_FILE_RED, index_col=0)
 IMAGER_RESPONSE_GREEN = pd.read_csv(IMAGER_RESPONSE_FILE_GREEN, index_col=0)
 IMAGER_RESPONSE_BLUE = pd.read_csv(IMAGER_RESPONSE_FILE_BLUE, index_col=0)
@@ -17,7 +22,7 @@ class Imager:
     def __init__(self,
                  exposure_time=10 * u.s,
                  pixel_area=(3.45 * u.um) ** 2,
-                 lens_diameter=20.0 * u.mm,
+                 lens_diameter=80.0 * u.mm,  # 20.0 * u.mm
                  lens_focal_length=86.2 * u.mm,
                  optical_loss=0.96,
                  quantum_efficiency=30,
@@ -26,6 +31,19 @@ class Imager:
                  full_well=10500,
                  n_bits=10,
                  resolution=(2448, 2048)):
+        """
+        :param exposure_time: exposure time in seconds
+        :param pixel_area: pixel area in m^2
+        :param lens_diameter: lens diameter in m
+        :param lens_focal_length: lens focal length in m
+        :param optical_loss: optical loss
+        :param quantum_efficiency: quantum efficiency
+        :param std_read: standard deviation of the read noise in e-
+        :param beta_t: dark current in e-/s
+        :param full_well: full well capacity in e-
+        :param n_bits: number of bits of the ADC
+        :param resolution: resolution of the imager in pixels
+        """
         self.exposure_time = exposure_time
         self.pixel_area = pixel_area
         self.lens_diameter = lens_diameter
@@ -58,6 +76,11 @@ class Imager:
             raise ValueError('Channel must be either red, green or blue')
 
     def get_wavelength_range(self, channel: str):
+        """
+        Get the wavelength range for a given channel
+        :param channel: channel (red, green, blue)
+        :return: wavelength range
+        """
         if channel == 'red' or channel == 'r':
             return IMAGER_RESPONSE_RED.index
         elif channel == 'green' or channel == 'g':
@@ -69,6 +92,9 @@ class Imager:
 
     @staticmethod
     def get_pixel_colors():
+        """
+        Get the pixel colors
+        """
         return ["red", "green", "blue"]
 
     # ------------------------------------------------
@@ -154,9 +180,18 @@ class Imager:
         return n_electrons
 
     def camera_post_process(self, n_electrons):
+        """
+        Apply the camera post processing to the number of electrons.
+        :param n_electrons: number of electrons
+        :return: number of electrons with camera post processing
+        """
         return np.clip(n_electrons, a_min=0, a_max=self.full_well)
 
     def camera_dark_current_estimation(self):
+        """
+        Estimate the dark current.
+        :return: dark current in number of electrons
+        """
         return self.beta_t * self.exposure_time
 
     def _camera_poisson_noise(self, n_electrons):
@@ -207,12 +242,24 @@ class Imager:
     # ------------- Birefringence model --------------
     # ------------------------------------------------
     def apply_birefringence(self, obs, biref_mat):
+        """
+        Apply birefringence to the observation.
+        :param obs: observation
+        :param biref_mat: birefringence mueller matrix
+        :return: observation with birefringence
+        """
         observation_mat = obs.to_numpy(ndims=3)
         observation_biref = np.einsum('a...ij,a...jk->a...ik', biref_mat[..., :3, :3], observation_mat[..., None])
         I, Q, U = observation_biref[..., 0, 0], observation_biref[..., 1, 0], observation_biref[..., 2, 0]
-        return Observation(I, Q, U, theta=obs.theta, phi=obs.phi)
+        return Observation(I, Q, U, theta=obs.theta, phi=obs.phi, star_pixels=obs.star_pixels)
 
     def get_birefringence_mueller_matrix(self, birefringence_amount, birefringence_angle):
+        """
+        Get the birefringence mueller matrix.
+        :param birefringence_amount: birefringence amount
+        :param birefringence_angle: birefringence angle
+        :return: birefringence mueller matrix
+        """
         pol_mueller = self._get_birefringence_polarizer_mat(birefringence_amount)
         pol_rotation = self._get_birefringence_angle_rotation_mat(birefringence_angle)
         pol_rotation_inv = self._get_birefringence_angle_rotation_mat(-birefringence_angle)
@@ -220,6 +267,11 @@ class Imager:
         return mul2
 
     def _get_birefringence_angle_rotation_mat(self, birefringence_angle):
+        """
+        Get the birefringence angle rotation matrix.
+        :param birefringence_angle: birefringence angle
+        :return: birefringence angle rotation matrix
+        """
         c2 = np.cos(2 * birefringence_angle)
         s2 = np.sin(2 * birefringence_angle)
         mueller = np.zeros(birefringence_angle.shape + (4, 4))
@@ -232,6 +284,11 @@ class Imager:
         return mueller
 
     def _get_birefringence_polarizer_mat(self, birefringence_amount):
+        """
+        Get the birefringence polarizer matrix.
+        :param birefringence_amount: birefringence amount
+        :return: birefringence polarizer matrix
+        """
         c = np.cos(birefringence_amount)
         s = np.sin(birefringence_amount)
         mueller = np.zeros(birefringence_amount.shape + (4, 4))
