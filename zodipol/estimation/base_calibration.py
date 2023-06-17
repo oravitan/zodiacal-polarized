@@ -6,11 +6,11 @@ import numpy as np
 import astropy.units as u
 
 from tqdm import tqdm
-from scipy.signal import convolve2d
 from scipy.ndimage import uniform_filter
 
 from zodipol.zodipy_local.zodipy.zodipy import IQU_to_image
-from zodipol.zodipol import Zodipol, Observation
+from zodipol.zodipol.zodipol import Zodipol
+from zodipol.zodipol.observation import Observation
 from zodipol.utils.argparser import ArgParser
 
 

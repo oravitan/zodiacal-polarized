@@ -1,18 +1,25 @@
 """
 This script performs self-calibration on a Zodipol object.
 """
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from datetime import datetime
 from scipy.signal import medfilt2d
-from sklearn.metrics import confusion_matrix, roc_curve
+from sklearn.metrics import confusion_matrix
 
 # import the necessary modules
 from zodipol.utils.argparser import ArgParser
-from zodipol.zodipol import Zodipol, get_observations, get_initial_parameters, get_initialization
-from zodipol.visualization.calibration_plots import plot_deviation_comp, plot_mueller, plot_cost_itr
+from zodipol.zodipol.zodipol import Zodipol
+from zodipol.zodipol.generate import get_observations, get_initial_parameters, get_initialization
 from scripts.self_calibration import self_calibrate
+
+
+run_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+outputs_dir = f'outputs/{run_time}'
+os.mkdir(outputs_dir)
 
 
 def main():
@@ -59,7 +66,7 @@ def main():
     plt.xlabel('Affected pixels', fontsize=16)
     plt.ylabel('Score', fontsize=16)
     plt.gca().tick_params(labelsize=14)
-    plt.savefig('outputs/anomality_boxplot.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
+    plt.savefig(f'{outputs_dir}/anomality_boxplot.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
 
     conf_matrix = confusion_matrix(gt, classification)
@@ -76,7 +83,7 @@ def main():
     plt.ylabel('Actuals', fontsize=18)
     plt.title('Confusion Matrix', fontsize=18)
     plt.tight_layout()
-    plt.savefig('outputs/anomality_confusion.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
+    plt.savefig(f'{outputs_dir}/anomality_confusion.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
 
     # Density-based Method
@@ -97,7 +104,7 @@ def main():
     plt.xlabel('Affected pixels', fontsize=16)
     plt.ylabel('Score', fontsize=16)
     plt.gca().tick_params(labelsize=14)
-    plt.savefig('outputs/anomality_boxplot.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
+    plt.savefig(f'{outputs_dir}/anomality_boxplot.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
 
     conf_matrix = confusion_matrix(gt, classification)
@@ -114,7 +121,7 @@ def main():
     plt.ylabel('Actuals', fontsize=18, rotation=0)
     plt.title('Confusion Matrix', fontsize=18)
     plt.tight_layout()
-    plt.savefig('outputs/anomality_confusion.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
+    plt.savefig(f'{outputs_dir}/anomality_confusion.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
 
     pass

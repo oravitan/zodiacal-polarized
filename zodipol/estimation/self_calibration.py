@@ -7,7 +7,7 @@ import astropy.units as u
 
 from zodipol.utils.math import align_images, get_rotated_image
 from zodipol.estimation.base_calibration import BaseCalibration
-from zodipol.zodipol import Observation
+from zodipol.zodipol.observation import Observation
 from zodipol.utils.mueller_matrices import get_rotation_mueller_matrix
 
 
