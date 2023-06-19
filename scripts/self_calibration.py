@@ -5,8 +5,10 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import astropy.units as u
+import multiprocessing as mp
 
 from tqdm import tqdm
+from itertools import repeat
 from functools import partial
 from typing import List
 from datetime import datetime
@@ -131,62 +133,71 @@ def compare_calib_self_calib(n_rotations=10, n_itr=10, **kwargs):
     compare_self_and_calib(true_values['p'][:, 0], self_est_values['p'][:, 0], est_values['p'][:, 0],
                            xlabel='true P', ylabel='$\hat{P}$', saveto=f'{outputs_dir}/compare_calib_self_calib.pdf')
 
-def main_plot_n_obs(n_itr=10, n_rotations_list=None, **kwargs):
+def main_plot_n_obs(n_itr=10, n_rotations_list=None, n_rpt=15, **kwargs):
     if n_rotations_list is None:
         n_rotations_list = np.linspace(10, 30, 10, endpoint=True, dtype=int)
-    parser = ArgParser()
-    zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
-                      n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
-                      n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
-                      resolution=parser["resolution"], imager_params=parser["imager_params"])
+    n_rotations_list_ = np.repeat(n_rotations_list, n_rpt)
 
-    # generate observations
-    A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
-    res_cost = []
-    for n_rotations in tqdm(n_rotations_list):
-        n_rot_res = []
-        for ii in range(3):
-            cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
-                                                                               disable=True, normalize_eigs=True, kernel_size=5, **kwargs)
-            mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
-            n_rot_res.append((cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1])
-        res_cost.append(n_rot_res)
-    res_cost_arr = np.array(res_cost)
+    with mp.Pool(60) as p:
+        results = p.map(_run_main_plot_n_obs, zip(n_rotations_list_, repeat(n_itr), repeat(kwargs)))
+    res_cost_arr = np.array(results).reshape((10, n_rpt, 7))
+
     rot_p_mse, p_err = np.mean(res_cost_arr[..., 1], axis=1), np.std(res_cost_arr[..., 1], axis=1)
     rot_biref_mse, biref_err = np.mean(res_cost_arr[..., 2], axis=1), np.std(res_cost_arr[..., 2], axis=1)
     plot_res_comp_plot(n_rotations_list, rot_p_mse, rot_biref_mse, saveto=f"{outputs_dir}/calib_mse_n_rotations.pdf",
                        xlabel="K", ylim1=(0, None), ylim2=(0, None), p_mse_err=p_err, biref_mse_err=biref_err)
-    return n_rotations_list, res_cost
+    return n_rotations_list, res_cost_arr
 
 
-def main_plot_exp_time(n_rotations=30, n_itr=10, exposure_time_list=None, **kwargs):
-    if exposure_time_list is None:
-        exposure_time_list = np.logspace(np.log10(10), np.log10(60), 10)
+def _run_main_plot_n_obs(inputs):
+    n_rotations, n_itr, kwargs = inputs
+
     parser = ArgParser()
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
                       n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
                       resolution=parser["resolution"], imager_params=parser["imager_params"])
     A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
+    cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
+                                                                       disable=True, normalize_eigs=True,
+                                                                       kernel_size=5, **kwargs)
+    mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
+    return (cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1]
 
-    # now estimate how well we calibration based on exposure time
-    res_cost = []
-    for exposure_time in tqdm(exposure_time_list):
-        n_ex_res = []
-        for ii in range(3):
-            zodipol.imager.exposure_time = exposure_time * u.s
-            cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
-                                                                               disable=True, normalize_eigs=True, kernel_size=5, **kwargs)
-            mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
-            n_ex_res.append((cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1])
-        res_cost.append(n_ex_res)
-    res_cost_arr = np.array(res_cost)
+
+def main_plot_exp_time(n_rotations=30, n_rpt=15, n_itr=10, exposure_time_list=None, **kwargs):
+    if exposure_time_list is None:
+        exposure_time_list = np.logspace(np.log10(10), np.log10(60), 10)
+    exposure_time_list_ = np.repeat(exposure_time_list, n_rpt)
+
+    with mp.Pool(60) as p:
+        results = p.map(_run_main_plot_exp_time, zip(exposure_time_list_, repeat(n_rotations), repeat(n_itr), repeat(kwargs)))
+    res_cost_arr = np.array(results).reshape((10, n_rpt, 7))
+
     ex_p_mse, p_err = np.mean(res_cost_arr[..., 1], axis=1), np.std(res_cost_arr[..., 1], axis=1)
     ex_biref_mse, biref_err = np.mean(res_cost_arr[..., 2], axis=1), np.std(res_cost_arr[..., 2], axis=1)
 
     plot_res_comp_plot(exposure_time_list, ex_p_mse, ex_biref_mse, saveto=f"{outputs_dir}/calib_mse_exposure_time.pdf",
                        xlabel="$\Delta t \;(s)$", ylim1=(0, None), ylim2=(0, None), p_mse_err=p_err, biref_mse_err=biref_err)
-    return exposure_time_list, res_cost
+    return exposure_time_list, res_cost_arr
+
+
+def _run_main_plot_exp_time(inputs):
+    exposure_time, n_rotations, n_itr, kwargs = inputs
+
+    parser = ArgParser()
+    zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
+                      n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
+                      n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
+                      resolution=parser["resolution"], imager_params=parser["imager_params"])
+    A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
+
+    zodipol.imager.exposure_time = exposure_time * u.s
+    cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
+                                                                       disable=True, normalize_eigs=True, kernel_size=5,
+                                                                       **kwargs)
+    mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
+    return (cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1]
 
 
 def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, **kwargs):
@@ -203,7 +214,7 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, *
     res_cost = []
     for direction_error in tqdm(direction_error_list):
         dir_err = []
-        for ii in range(3):
+        for ii in range(15):
             cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                                disable=True, normalize_eigs=True,
                                                                                kernel_size=5,
@@ -223,8 +234,8 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, *
 def main():
     main_show_cost(n_rotations=30, n_itr=5, self_calibration_flag=True)
     compare_calib_self_calib(n_rotations=30, n_itr=5)
-    n_obs_list, cost_n_obs = main_plot_n_obs(n_itr=5)
-    exp_t_list, cost_expo = main_plot_exp_time(n_rotations=30, n_itr=5)
+    n_obs_list, cost_n_obs = main_plot_n_obs(n_itr=5, n_rpt=15)
+    exp_t_list, cost_expo = main_plot_exp_time(n_rotations=30, n_itr=5, n_rpt=15)
     dir_unc_list, cost_dir_unc = main_plot_uncertainty(n_rotations=30, n_itr=5)
     pass
 

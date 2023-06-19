@@ -14,7 +14,8 @@ if __name__ == '__main__':
     logging.info(f'Started run.')
     parser = ArgParser()
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"], n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"], n_freq=parser["n_freq"],
-                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"])
+                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"],
+                      integrated_starlight_path='saved_models/skymap_flux512.npz')
     obs_full = zodipol.create_full_sky_observation(nside=128, obs_time=parser["obs_time"])
     camera_intensity_full_color = zodipol.make_camera_images_multicolor(obs_full,
                                                                         n_realizations=parser["n_realizations"],
@@ -88,12 +89,13 @@ if __name__ == '__main__':
     camera_intensity_color = zodipol.make_camera_images_multicolor(obs, n_realizations=1, add_noise=False)
     I_color = camera_intensity_color.reshape((300, 200, 3, 4))
     I_color_norm = (I_color - I_color.min()) / (I_color.max() - I_color.min())
+    I_color_gamma = I_color_norm ** 0.6  # gamma correction
 
-    fig, ax = plt.subplots(2, 2, figsize=(10, 10))
-    ax[0, 0].imshow(I_color_norm[..., 0]); ax[0, 0].axis('off')
-    ax[0, 1].imshow(I_color_norm[..., 1]); ax[0, 1].axis('off')
-    ax[1, 0].imshow(I_color_norm[..., 3]); ax[1, 0].axis('off')
-    ax[1, 1].imshow(I_color_norm[..., 2]); ax[1, 1].axis('off')
+    fig, ax = plt.subplots(1, 4, figsize=(10, 4))
+    ax[0].imshow(I_color_gamma[..., 0]); ax[0].axis('off')
+    ax[1].imshow(I_color_gamma[..., 1]); ax[1].axis('off')
+    ax[2].imshow(I_color_gamma[..., 3]); ax[2].axis('off')
+    ax[3].imshow(I_color_gamma[..., 2]); ax[3].axis('off')
     fig.tight_layout()
     plt.savefig('outputs/image_exmaple_color.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
