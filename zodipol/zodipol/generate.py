@@ -48,7 +48,7 @@ def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Z
         direction_uncertainty = parser["direction_uncertainty"]
     obs = [o.add_radial_blur(direction_uncertainty, list(parser["resolution"])) for o in obs]
     obs = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], direction_uncertainty) for o in obs]
-    [o.dilate_star_pixels((direction_uncertainty / zodipol.fov * np.min(parser['resolution'])).value.astype(int), parser["resolution"]) for o in obs]
+    [o.dilate_star_pixels(1 + (direction_uncertainty / zodipol.fov * np.min(parser['resolution'])).value.astype(int), parser["resolution"]) for o in obs]
 
     if mode == 'linear':
         delta_val, phi_val = np.pi / 8, np.pi / 6

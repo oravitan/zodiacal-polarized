@@ -137,10 +137,10 @@ class BaseCalibration:
         pseudo_inv = np.linalg.pinv(S_P)
         p_est = np.einsum('...ij,...j->...i', pseudo_inv, intensity_I)
 
-        if kernel_size is not None:
-            p_resh = p_est.reshape(self.parser["resolution"])
-            p_smooth = uniform_filter(p_resh, size=kernel_size, mode='nearest')
-            p_est = p_smooth.reshape(p_est.shape)
+        # if kernel_size is not None:
+        #     p_resh = p_est.reshape(self.parser["resolution"])
+        #     p_smooth = uniform_filter(p_resh, size=kernel_size, mode='nearest')
+        #     p_est = p_smooth.reshape(p_est.shape)
 
         p_est = np.clip(p_est, 0, 1)
         p_est = p_est.repeat(4, axis=-1)

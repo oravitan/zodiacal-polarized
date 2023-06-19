@@ -167,11 +167,11 @@ class Observation:
         :return: new Observation object
         """
         obs_new = self.change_roll(self.roll - np.deg2rad(rotation_angle))
-        shape_old = obs_new.I.shape
-        shape_new = resolution + list(obs_new.I.shape[1:])
-        I_new = rotate(obs_new.I.reshape(shape_new), rotation_angle, mode='edge').reshape(shape_old)
-        Q_new = rotate(obs_new.Q.reshape(shape_new), rotation_angle, mode='edge').reshape(shape_old)
-        U_new = rotate(obs_new.U.reshape(shape_new), rotation_angle, mode='edge').reshape(shape_old)
+        obs_new_arr = obs_new.to_numpy(ndims=3)
+        shape_old = obs_new_arr.shape
+        shape_new = resolution + [np.prod(obs_new_arr.shape[1:])]
+        obs_rot_arr = rotate(obs_new_arr.reshape(shape_new), rotation_angle, mode='edge').reshape(shape_old)
+        I_new, Q_new, U_new = obs_rot_arr[..., 0], obs_rot_arr[..., 1], obs_rot_arr[..., 2]
         return Observation(I_new, Q_new, U_new, theta=self.theta, phi=self.phi, roll=self.roll - rotation_angle, star_pixels=self.star_pixels)
 
     def dilate_star_pixels(self, n_pixels, resolution):

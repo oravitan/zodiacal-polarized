@@ -20,10 +20,8 @@ from zodipol.zodipol.generate import get_observations, get_initial_parameters, g
 from zodipol.visualization.calibration_plots import plot_deviation_comp, plot_mueller, plot_cost_itr, \
     plot_res_comp_plot, plot_all_calibration_props, compare_self_and_calib
 
-
 run_time = datetime.now().strftime("%Y%m%d-%H%M%S")
 outputs_dir = f'outputs/{run_time}'
-os.mkdir(outputs_dir)
 
 
 def calibrate(obs_truth, zodipol: Zodipol, parser: ArgParser, images_res_flat: np.ndarray,
@@ -115,6 +113,7 @@ def main_show_cost(n_rotations=10, n_itr=10, name='self_calib', **kwargs):
     plot_all_calibration_props(true_values["p"][..., 0], true_values["biref"], parser["resolution"], saveto=f'{outputs_dir}/{name}_true_values.pdf')
     plot_all_calibration_props(est_values["p"][..., 0], est_values["biref"], parser["resolution"],
                                saveto=f'{outputs_dir}/{name}_est_values.pdf')
+    pass
 
 
 def compare_calib_self_calib(n_rotations=10, n_itr=10, **kwargs):
@@ -231,4 +230,5 @@ def main():
 
 
 if __name__ == '__main__':
+    os.mkdir(outputs_dir)
     main()
