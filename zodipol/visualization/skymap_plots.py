@@ -1,6 +1,5 @@
 import numpy as np
 import healpy as hp
-import matplotlib
 import matplotlib.pyplot as plt
 
 from scipy.interpolate import griddata
