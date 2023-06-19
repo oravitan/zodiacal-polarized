@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 
 
 def plot_deviation_comp(parser, polarizance_real, polarizance_est_reshape, saveto=None):
@@ -134,4 +136,42 @@ def plot_res_comp_plot(x_value, p_mse, biref_mse, saveto=None, xlabel=None, ylim
         ax2.set_ylim(*ylim2)
     if saveto is not None:
         plt.savefig(saveto, format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
+    plt.show()
+
+
+def plot_all_calibration_props(p, biref, resolution, saveto=None):
+    fig, ax = plt.subplots(1, 4, figsize=(11, 3))
+    c0 = ax[0].imshow(p.reshape(resolution)); ax[0].axis('off');
+    cbar0 = plt.colorbar(c0, ax=ax[0]); cbar0.ax.tick_params(labelsize=16); ax[0].set_title('$P$', fontsize=22)
+    c1 = ax[1].imshow(biref[:, 1, 1].reshape(resolution)); ax[1].axis('off');
+    cbar1 = plt.colorbar(c1, ax=ax[1]); cbar1.ax.tick_params(labelsize=16); ax[1].set_title('${\\tt a}$', fontsize=22)
+    c2 = ax[2].imshow(biref[:, 1, 2].reshape(resolution)); ax[2].axis('off');
+    cbar2 = plt.colorbar(c2, ax=ax[2]); cbar2.ax.tick_params(labelsize=16); ax[2].set_title('${\\tt b}$', fontsize=22)
+    c3 = ax[3].imshow(biref[:, 2, 2].reshape(resolution)); ax[3].axis('off');
+    cbar3 = plt.colorbar(c3, ax=ax[3]); cbar3.ax.tick_params(labelsize=16); ax[3].set_title('${\\tt c}$', fontsize=22)
+    fig.tight_layout()
+    if saveto is not None:
+        plt.savefig(saveto, format='pdf', bbox_inches='tight', transparent="True", pad_inches=.1)
+    plt.show()
+
+
+def compare_self_and_calib(true_values, self_values, calib_values, xlabel='', ylabel='', saveto=None, n_points=200):
+    if n_points is not None:
+        len_data = len(true_values)
+        chosen_ind = np.random.randint(0, len_data, n_points)
+        true_values_, self_values_, calib_values_ = true_values[chosen_ind], self_values[chosen_ind], calib_values[chosen_ind]
+    else:
+        true_values_, self_values_, calib_values_ = true_values, self_values, calib_values
+
+    fig, ax = plt.subplots(1, 1, figsize=(6, 5))
+    plt.scatter(true_values_, self_values_, label='self-calibration', alpha=1)
+    plt.scatter(true_values_, calib_values_, label='calibration', alpha=1)
+    plt.grid()
+    plt.xlabel(xlabel, fontsize=16)
+    plt.ylabel(ylabel, fontsize=16)
+    plt.tick_params(labelsize=14)
+    plt.legend(fontsize=14)
+    plt.tight_layout()
+    if saveto is not None:
+        plt.savefig(saveto, format='pdf', bbox_inches='tight', transparent="True", pad_inches=0.1)
     plt.show()

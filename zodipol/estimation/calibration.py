@@ -6,7 +6,7 @@ import numpy as np
 import astropy.units as u
 
 from zodipol.estimation.base_calibration import BaseCalibration
-from zodipol.zodipol import Zodipol
+from zodipol.zodipol.zodipol import Zodipol
 from zodipol.utils.argparser import ArgParser
 
 

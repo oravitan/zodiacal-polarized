@@ -2,12 +2,11 @@ import os
 import numpy as np
 import astropy.units as u
 import healpy as hp
-import transformations as transf
 
 from astropy.time import Time
 from astropy.constants import c
 
-from zodipol.utils.math import ang2vec, vec2ang, get_c2w, get_w2c
+from zodipol.utils.math import ang2vec, vec2ang, get_c2w
 from zodipol.zodipol.observation import Observation
 from zodipol.zodipy_local.zodipy.zodipy import Zodipy, IQU_to_image
 from zodipol.imager.imager import Imager

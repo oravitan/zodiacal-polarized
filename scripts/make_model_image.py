@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 
 from zodipol.utils.argparser import ArgParser
-from zodipol.zodipol import Zodipol
+from zodipol.zodipol.zodipol import Zodipol
 
 
 logging_format = '%(asctime)s - %(levelname)s - %(message)s'

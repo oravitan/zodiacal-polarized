@@ -22,7 +22,7 @@ class Imager:
     def __init__(self,
                  exposure_time=10 * u.s,
                  pixel_area=(3.45 * u.um) ** 2,
-                 lens_diameter=80.0 * u.mm,  # 20.0 * u.mm
+                 lens_diameter=60.0 * u.mm,  # 20.0 * u.mm
                  lens_focal_length=86.2 * u.mm,
                  optical_loss=0.96,
                  quantum_efficiency=30,

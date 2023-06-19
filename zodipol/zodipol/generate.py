@@ -48,7 +48,7 @@ def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Z
         direction_uncertainty = parser["direction_uncertainty"]
     obs = [o.add_radial_blur(direction_uncertainty, list(parser["resolution"])) for o in obs]
     obs = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], direction_uncertainty) for o in obs]
-    [o.dilate_star_pixels((direction_uncertainty / zodipol.fov * np.min(parser['resolution'])).value.astype(int), parser["resolution"]) for o in obs]
+    [o.dilate_star_pixels(1 + (direction_uncertainty / zodipol.fov * np.min(parser['resolution'])).value.astype(int), parser["resolution"]) for o in obs]
 
     if mode == 'linear':
         delta_val, phi_val = np.pi / 8, np.pi / 6
@@ -77,7 +77,7 @@ def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Z
         obs_biref = [zodipol.imager.apply_birefringence(o, mueller_truth[:, None, ...]) for o in obs]
 
         polarizance = zodipol.imager.get_birefringence_mat(2 * np.pi, 'sine', flat=True, min=-2 * np.pi)
-        polarizance = (polarizance - polarizance.min()) / (polarizance.max() - polarizance.min()) * 0.3 + 0.6
+        polarizance = (polarizance - polarizance.min()) / (polarizance.max() - polarizance.min()) * 0.09 + 0.9
         polarizance_real = polarizance.reshape((-1, 1, 1)).repeat(parser["n_polarization_ang"], axis=-1)
     elif mode == 'anomalies':
         anomaly_amount, anomaly_percentage = 0.05, 0.03
@@ -86,7 +86,7 @@ def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Z
         mueller_truth = zodipol.imager.get_birefringence_mueller_matrix(delta, phi)
         obs_biref = [zodipol.imager.apply_birefringence(o, mueller_truth[:, None, ...]) for o in obs]
 
-        polarizance = zodipol.imager.get_birefringence_mat(0.9, 'constant', flat=True)
+        polarizance = zodipol.imager.get_birefringence_mat(0.99, 'constant', flat=True)
         polarizance_noise = random_noise(polarizance, mode='pepper', amount=anomaly_percentage)
         polarizance = (1 - anomaly_amount) * polarizance + anomaly_amount * polarizance_noise  # reduce by anomaly_amount
         polarizance_real = polarizance.reshape((-1, 1, 1)).repeat(parser["n_polarization_ang"], axis=-1)

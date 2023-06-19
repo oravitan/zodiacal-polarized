@@ -6,11 +6,11 @@ import numpy as np
 import astropy.units as u
 
 from tqdm import tqdm
-from scipy.signal import convolve2d
 from scipy.ndimage import uniform_filter
 
 from zodipol.zodipy_local.zodipy.zodipy import IQU_to_image
-from zodipol.zodipol import Zodipol, Observation
+from zodipol.zodipol.zodipol import Zodipol
+from zodipol.zodipol.observation import Observation
 from zodipol.utils.argparser import ArgParser
 
 
@@ -137,10 +137,10 @@ class BaseCalibration:
         pseudo_inv = np.linalg.pinv(S_P)
         p_est = np.einsum('...ij,...j->...i', pseudo_inv, intensity_I)
 
-        if kernel_size is not None:
-            p_resh = p_est.reshape(self.parser["resolution"])
-            p_smooth = uniform_filter(p_resh, size=kernel_size, mode='nearest')
-            p_est = p_smooth.reshape(p_est.shape)
+        # if kernel_size is not None:
+        #     p_resh = p_est.reshape(self.parser["resolution"])
+        #     p_smooth = uniform_filter(p_resh, size=kernel_size, mode='nearest')
+        #     p_est = p_smooth.reshape(p_est.shape)
 
         p_est = np.clip(p_est, 0, 1)
         p_est = p_est.repeat(4, axis=-1)
