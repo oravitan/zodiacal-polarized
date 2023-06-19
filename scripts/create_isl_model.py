@@ -16,7 +16,7 @@ if __name__ == '__main__':
     frequency = wavelength.to(u.Hz, equivalencies=u.spectral())
 
     isf = IntegratedStarlightFactory('2022-06-14', nside=512)
-    skymap_flux = isf.build_skymap(frequency.value, parallel=True, request_size=2000)
+    skymap_flux = isf.build_skymap(frequency.value, parallel=True, request_size=10000, n_cpu=30)
     skymap_flux.save("saved_models/skymap_flux512.npz")
 
     plot_skymap(skymap_flux.isl_map[:, 0], max=1e4)

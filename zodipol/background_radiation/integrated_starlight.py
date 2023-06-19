@@ -211,7 +211,7 @@ class IntegratedStarlightFactory:
             return result_table.to_pandas()
         return result_table  # only one catalog
 
-    def build_skymap(self, frequency: float, width: u.Quantity = None, parallel: bool = True, request_size=1000):
+    def build_skymap(self, frequency: float, width: u.Quantity = None, parallel: bool = True, request_size=1000, n_cpu=None):
         """
         Build the integrated starlight skymap
         :param frequency: frequency (Hz)
@@ -222,22 +222,24 @@ class IntegratedStarlightFactory:
         """
         width = width if width is not None else self.pixel_size * u.deg
         lon, lat = self.get_pixels_directions()
-        return self.build_dirmap(lon, lat, frequency=frequency, width=width, parallel=parallel, request_size=request_size)
+        self.visier.ROW_LIMIT = request_size  # set the row limit
+        return self.build_dirmap(lon, lat, frequency=frequency, width=width, parallel=parallel, request_size=request_size, n_cpu=n_cpu)
 
     def build_dirmap(self, lon, lat, frequency: float, width: u.Quantity = None,
-                     parallel: bool = True, request_size=1000):
+                     parallel: bool = True, request_size=1000, n_cpu=None):
         logging.info(f'Building ISL skymap for {len(self.pixels)} pixels.')
         array_split = np.array_split(np.stack([lon, lat], axis=-1), len(lon) // request_size)
         if parallel:
-            n_cpu = cpu_count() - 1
+            if n_cpu is None:
+                n_cpu = cpu_count() - 1
             logging.info(f'Using {len(array_split)} requests parallel in {n_cpu} pools.')
-            with Pool(30) as p:
+            with Pool(n_cpu) as p:
                 flux_list = p.starmap(self.estimate_direction_flux_parallel, zip(array_split, range(len(array_split)),
                                                                                  repeat(frequency), repeat(width)))
-                flux = np.concatenate(flux_list)
         else:
             logging.info(f'Using {len(array_split)} requests.')
             flux = [self.estimate_direction_flux_parallel(lonlat, id, frequency, width) for id,lonlat in enumerate(array_split)]
+        flux = np.concatenate(flux_list) * flux_list[0][0].unit
         isl = IntegratedStarlight(u.Quantity(flux), frequency)
         return isl
 
