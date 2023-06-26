@@ -111,8 +111,13 @@ def main_show_cost(n_rotations=10, n_itr=10, name='self_calib', **kwargs):
                         saveto=f'{outputs_dir}/{name}_polarizance_est.pdf')
     plot_mueller(est_values['biref'] - np.eye(3)[None, ...], parser, cbar=True, saveto=f'{outputs_dir}/{name}_birefringence_est.pdf')
     plot_all_calibration_props(true_values["p"][..., 0], true_values["biref"], parser["resolution"], saveto=f'{outputs_dir}/{name}_true_values.pdf')
+    p_kwargs = {'vmin': true_values["p"][..., 0].min(), 'vmax': true_values["p"][..., 0].max()}
+    a_kwargs = {'vmin': true_values["biref"][..., 1, 1].min(), 'vmax': true_values["biref"][..., 1, 1].max()}
+    b_kwargs = {'vmin': true_values["biref"][..., 1, 2].min(), 'vmax': true_values["biref"][..., 1, 2].max()}
+    c_kwargs = {'vmin': true_values["biref"][..., 2, 2].min(), 'vmax': true_values["biref"][..., 2, 2].max()}
     plot_all_calibration_props(est_values["p"][..., 0], est_values["biref"], parser["resolution"],
-                               saveto=f'{outputs_dir}/{name}_est_values.pdf')
+                               saveto=f'{outputs_dir}/{name}_est_values.pdf', p_kwargs=p_kwargs, a_kwargs=a_kwargs,
+                               b_kwargs=b_kwargs, c_kwargs=c_kwargs)
     pass
 
 
@@ -130,6 +135,13 @@ def compare_calib_self_calib(n_rotations=10, n_itr=10, **kwargs):
                                                                        self_calibration_flag=False, normalize_eigs=True, kernel_size=5, **kwargs)
     compare_self_and_calib(true_values['p'][:, 0], self_est_values['p'][:, 0], est_values['p'][:, 0],
                            xlabel='true P', ylabel='$\hat{P}$', saveto=f'{outputs_dir}/compare_calib_self_calib.pdf')
+    compare_self_and_calib(true_values['biref'][:, 1, 1], self_est_values['biref'][:, 1, 1], est_values['biref'][:, 1, 1],
+                           xlabel='true ${\\tt a}$', ylabel='$\hat{\\tt a}$', saveto=f'{outputs_dir}/compare_calib_self_calib_a.pdf')
+    compare_self_and_calib(true_values['biref'][:, 1, 2], self_est_values['biref'][:, 1, 2], est_values['biref'][:, 1, 2],
+                           xlabel='true ${\\tt b}$', ylabel='$\hat{\\tt b}$', saveto=f'{outputs_dir}/compare_calib_self_calib_b.pdf')
+    compare_self_and_calib(true_values['biref'][:, 2, 2], self_est_values['biref'][:, 2, 2], est_values['biref'][:, 2, 2],
+                           xlabel='true ${\\tt c}$', ylabel='$\hat{\\tt c}$', saveto=f'{outputs_dir}/compare_calib_self_calib_c.pdf')
+    pass
 
 def main_plot_n_obs(n_itr=10, n_rotations_list=None, **kwargs):
     if n_rotations_list is None:
@@ -145,7 +157,7 @@ def main_plot_n_obs(n_itr=10, n_rotations_list=None, **kwargs):
     res_cost = []
     for n_rotations in tqdm(n_rotations_list):
         n_rot_res = []
-        for ii in range(3):
+        for ii in range(7):
             cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                                disable=True, normalize_eigs=True, kernel_size=5, **kwargs)
             mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
@@ -173,7 +185,7 @@ def main_plot_exp_time(n_rotations=30, n_itr=10, exposure_time_list=None, **kwar
     res_cost = []
     for exposure_time in tqdm(exposure_time_list):
         n_ex_res = []
-        for ii in range(3):
+        for ii in range(7):
             zodipol.imager.exposure_time = exposure_time * u.s
             cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                                disable=True, normalize_eigs=True, kernel_size=5, **kwargs)
@@ -190,6 +202,8 @@ def main_plot_exp_time(n_rotations=30, n_itr=10, exposure_time_list=None, **kwar
 
 
 def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, **kwargs):
+    # In the direction estimation study, exposure time need to be long enough to get a significant signal, but we do not
+    # omit the stars pixels, so exposure time needs to be short enough to avoid full-well.
     if direction_error_list is None:
         direction_error_list = np.logspace(np.log10(0.005), np.log10(2.5), 10)
     parser = ArgParser()
@@ -203,11 +217,13 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, *
     res_cost = []
     for direction_error in tqdm(direction_error_list):
         dir_err = []
-        for ii in range(3):
+        for ii in range(7):
             cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                                disable=True, normalize_eigs=True,
                                                                                kernel_size=5,
-                                                                               direction_uncertainty=direction_error * u.deg, **kwargs)
+                                                                               direction_uncertainty=direction_error * u.deg,
+                                                                               remove_stars=False,  # necesary for higher direction uncertainty
+                                                                               **kwargs)
             mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
             dir_err.append((cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1])
         res_cost.append(dir_err)
@@ -222,6 +238,7 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, *
 
 def main():
     main_show_cost(n_rotations=30, n_itr=5, self_calibration_flag=True)
+    main_show_cost(n_rotations=30, n_itr=5, self_calibration_flag=False, name='calib')
     compare_calib_self_calib(n_rotations=30, n_itr=5)
     n_obs_list, cost_n_obs = main_plot_n_obs(n_itr=5)
     exp_t_list, cost_expo = main_plot_exp_time(n_rotations=30, n_itr=5)

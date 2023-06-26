@@ -80,6 +80,7 @@ def plot_calibration_nbos(n_itr=10, n_rotations_list=None):
     rot_intensity_mse, rot_p_mse, rot_biref_mse = list(zip(*res_cost))
     plot_res_comp_plot(n_rotations_list, rot_p_mse, rot_biref_mse, saveto=f"{outputs_dir}/calib_mse_n_rotations.pdf",
                        xlabel="Number of observations")
+    return rot_intensity_mse, rot_p_mse, rot_biref_mse
 
 
 def plot_calibration_exp(n_rotations=30, n_itr=10, exposure_time_list=None):
@@ -100,6 +101,7 @@ def plot_calibration_exp(n_rotations=30, n_itr=10, exposure_time_list=None):
     ex_intensity_mse, ex_p_mse, ex_biref_mse = list(zip(*res_cost))
     plot_res_comp_plot(exposure_time_list, ex_p_mse, ex_biref_mse, saveto=f"{outputs_dir}/calib_mse_exposure_time.pdf",
                        xlabel="$\Delta t \;(s)$")
+    return ex_intensity_mse, ex_p_mse, ex_biref_mse
 
 
 if __name__ == '__main__':
@@ -107,6 +109,6 @@ if __name__ == '__main__':
     # set params
     logging.info(f'Started run.')
     visualize_calibration(n_rotations=30, n_itr=10)
-    plot_calibration_nbos(n_itr=30, n_rotations_list=None)
-    plot_calibration_exp(n_rotations=30, n_itr=30, exposure_time_list=None)
+    rot_intensity_mse, rot_p_mse, rot_biref_mse = plot_calibration_nbos(n_itr=30, n_rotations_list=None)
+    ex_intensity_mse, ex_p_mse, ex_biref_mse = plot_calibration_exp(n_rotations=30, n_itr=30, exposure_time_list=None)
     pass

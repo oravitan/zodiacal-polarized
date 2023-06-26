@@ -109,7 +109,7 @@ class BaseCalibration:
         """
         ...
 
-    def estimate_polarizance(self, images: u.Quantity, kernel_size=None, star_pixels=None, **kwargs) -> None:
+    def estimate_polarizance(self, images: u.Quantity, kernel_size=None, star_pixels=None, remove_stars=True, **kwargs) -> None:
         """
         Estimate the polarization of every pixel.
         :param images: The images.
@@ -125,8 +125,9 @@ class BaseCalibration:
         # WLS
         if star_pixels is None:
             star_pixels = np.stack([o.star_pixels for o in self.obs], axis=-1)
-        stokes_tag = np.einsum('ij...,ij->ij...', stokes_tag, ~star_pixels)
-        intensity = np.einsum('i...j,ij->i...j', intensity, ~star_pixels)
+        if remove_stars:
+            stokes_tag = np.einsum('ij...,ij->ij...', stokes_tag, ~star_pixels)
+            intensity = np.einsum('i...j,ij->i...j', intensity, ~star_pixels)
 
         stokes_I, stokes_QU = stokes_tag[..., 0], stokes_tag[..., 1:]
         intensity_I = np.moveaxis(intensity, -2, -1) - 0.5 * stokes_I[..., None]
@@ -137,17 +138,12 @@ class BaseCalibration:
         pseudo_inv = np.linalg.pinv(S_P)
         p_est = np.einsum('...ij,...j->...i', pseudo_inv, intensity_I)
 
-        # if kernel_size is not None:
-        #     p_resh = p_est.reshape(self.parser["resolution"])
-        #     p_smooth = uniform_filter(p_resh, size=kernel_size, mode='nearest')
-        #     p_est = p_smooth.reshape(p_est.shape)
-
         p_est = np.clip(p_est, 0, 1)
         p_est = p_est.repeat(4, axis=-1)
         self.p = p_est
 
     def estimate_birefringence(self, images: u.Quantity, kernel_size: int = None, normalize_eigs: bool = False,
-                               star_pixels=None, **kwargs) -> None:
+                               star_pixels=None, remove_stars=True, **kwargs) -> None:
         """
         Estimate the birefringence of every pixel.
         :param images: The images.
@@ -165,8 +161,9 @@ class BaseCalibration:
         # WLS
         if star_pixels is None:
             star_pixels = np.stack([o.star_pixels for o in self.obs], axis=-1)
-        stokes = np.einsum('i...j,ij->i...j', stokes, ~star_pixels)
-        intensity = np.einsum('ij...,ij->ij...', intensity, ~star_pixels)
+        if remove_stars:
+            stokes = np.einsum('i...j,ij->i...j', stokes, ~star_pixels)
+            intensity = np.einsum('ij...,ij->ij...', intensity, ~star_pixels)
 
         stokes_I, stokes_QU = stokes[:, 0, :], stokes[:, 1:, :]
         intensity_I = intensity - 0.5 * stokes_I[..., None]
