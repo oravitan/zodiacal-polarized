@@ -27,6 +27,7 @@ class BaseCalibration:
         self.p = None
         self.eta = None
         self.biref = None
+        self.init = None
         self.zodipol = zodipol
         self.parser = parser
         self.initialize()
@@ -53,6 +54,7 @@ class BaseCalibration:
         # create the birefringence matrix
         self.biref = self.zodipol.imager.get_birefringence_mueller_matrix(delta, alpha)[..., :3, :3]
         self.biref = (init['biref'] if 'biref' in init else self.biref)
+        self.init = {'p': self.p, 'eta': self.eta, 'biref': self.biref}
 
     def forward_model(self, obs: Observation) -> u.Quantity:
         """

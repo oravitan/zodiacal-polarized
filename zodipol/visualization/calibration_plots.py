@@ -160,23 +160,29 @@ def plot_all_calibration_props(p, biref, resolution, saveto=None, p_kwargs=None,
     plt.show()
 
 
-def compare_self_and_calib(true_values, self_values, calib_values, xlabel='', ylabel='', saveto=None, n_points=200):
+def compare_self_and_calib(true_values, self_values, calib_values, xlabel='', ylabel='', saveto=None, n_points=200, ax=None):
     if n_points is not None:
         len_data = len(true_values)
         chosen_ind = np.random.randint(0, len_data, n_points)
         true_values_, self_values_, calib_values_ = true_values[chosen_ind], self_values[chosen_ind], calib_values[chosen_ind]
     else:
         true_values_, self_values_, calib_values_ = true_values, self_values, calib_values
+    min_all = np.min([np.nanmin(true_values_), np.nanmin(self_values_)])
+    max_all = np.max([np.nanmax(true_values_), np.nanmax(self_values_)])
 
-    fig, ax = plt.subplots(1, 1, figsize=(4, 4))
-    plt.scatter(true_values_, self_values_, label='self-calibration', alpha=1)
-    plt.scatter(true_values_, calib_values_, label='calibration', alpha=1)
-    plt.grid()
-    plt.xlabel(xlabel, fontsize=16)
-    plt.ylabel(ylabel, fontsize=16)
-    plt.tick_params(labelsize=14)
-    plt.legend(fontsize=14)
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(5, 4))
+    ax.scatter(true_values_, self_values_, label='self-calibration', alpha=1)
+    ax.scatter(true_values_, calib_values_, label='calibration', alpha=1)
+    ax.grid()
+    ax.set_xlabel(xlabel, fontsize=18)
+    ax.set_ylabel(ylabel, fontsize=18)
+    ax.tick_params(labelsize=18)
+    # plt.legend(fontsize=14)
+    ax.set_ylim(min_all, max_all)
+    ax.set_xlim(min_all, max_all)
+    ax.axis('scaled')
     plt.tight_layout()
     if saveto is not None:
         plt.savefig(saveto, format='pdf', bbox_inches='tight', transparent="True", pad_inches=0.1)
-    plt.show()
+    # plt.show()

@@ -57,8 +57,9 @@ class SelfCalibration(BaseCalibration):
         :param kwargs: additional keyword arguments
         """
         super().estimate_polarizance(images, **kwargs)
-        max_p = (kwargs['max_p'] if 'max_p' in kwargs else 1)
-        self.p = self.p - np.quantile(self.p[~self.nan_mask], 0.95) + max_p
+        # max_p = (kwargs['max_p'] if 'max_p' in kwargs else 1)
+        rho = self.p / self.init['p']
+        self.p = self.p / np.quantile(rho, 0.95)
         self.p = np.clip(self.p, 0, 1)
 
     def estimate_birefringence(self, images, kernel_size: int = None, normalize_eigs: bool = False, **kwargs):

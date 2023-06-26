@@ -133,14 +133,18 @@ def compare_calib_self_calib(n_rotations=10, n_itr=10, **kwargs):
                                                                        normalize_eigs=True, kernel_size=5, **kwargs)
     cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                        self_calibration_flag=False, normalize_eigs=True, kernel_size=5, **kwargs)
+    fig, ax = plt.subplots(2, 2, figsize=(8, 7))
     compare_self_and_calib(true_values['p'][:, 0], self_est_values['p'][:, 0], est_values['p'][:, 0],
-                           xlabel='true P', ylabel='$\hat{P}$', saveto=f'{outputs_dir}/compare_calib_self_calib.pdf')
+                           xlabel='$P^{\\rm true}$', ylabel='$\hat{P}$', ax=ax[0, 0], n_points=150)
     compare_self_and_calib(true_values['biref'][:, 1, 1], self_est_values['biref'][:, 1, 1], est_values['biref'][:, 1, 1],
-                           xlabel='true ${\\tt a}$', ylabel='$\hat{\\tt a}$', saveto=f'{outputs_dir}/compare_calib_self_calib_a.pdf')
+                           xlabel='${\\tt a}^{\\rm true}$', ylabel='$\hat{\\tt a}$', ax=ax[0, 1], n_points=150)
     compare_self_and_calib(true_values['biref'][:, 1, 2], self_est_values['biref'][:, 1, 2], est_values['biref'][:, 1, 2],
-                           xlabel='true ${\\tt b}$', ylabel='$\hat{\\tt b}$', saveto=f'{outputs_dir}/compare_calib_self_calib_b.pdf')
+                           xlabel='${\\tt b}^{\\rm true}$', ylabel='$\hat{\\tt b}$', ax=ax[1, 0], n_points=150)
     compare_self_and_calib(true_values['biref'][:, 2, 2], self_est_values['biref'][:, 2, 2], est_values['biref'][:, 2, 2],
-                           xlabel='true ${\\tt c}$', ylabel='$\hat{\\tt c}$', saveto=f'{outputs_dir}/compare_calib_self_calib_c.pdf')
+                           xlabel='${\\tt c}^{\\rm true}$', ylabel='$\hat{\\tt c}$', ax=ax[1, 1], n_points=150)
+    plt.tight_layout()
+    fig.savefig(f'{outputs_dir}/compare_calib_self_calib.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0.1)
+    plt.show()
     pass
 
 def main_plot_n_obs(n_itr=10, n_rotations_list=None, **kwargs):
@@ -205,7 +209,7 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, *
     # In the direction estimation study, exposure time need to be long enough to get a significant signal, but we do not
     # omit the stars pixels, so exposure time needs to be short enough to avoid full-well.
     if direction_error_list is None:
-        direction_error_list = np.logspace(np.log10(0.005), np.log10(2.5), 10)
+        direction_error_list = np.logspace(np.log10(0.0001), np.log10(0.2), 10)
     parser = ArgParser()
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
