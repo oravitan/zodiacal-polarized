@@ -140,9 +140,14 @@ class BaseCalibration:
         pseudo_inv = np.linalg.pinv(S_P)
         p_est = np.einsum('...ij,...j->...i', pseudo_inv, intensity_I)
 
-        p_est = np.clip(p_est, 0, 1)
+        p_est = self._pose_constraints_p(p_est)
         p_est = p_est.repeat(4, axis=-1)
         self.p = p_est
+
+    @staticmethod
+    def _pose_constraints_p(p):
+        p = np.clip(p, 0, 1)
+        return p
 
     def estimate_birefringence(self, images: u.Quantity, kernel_size: int = None, normalize_eigs: bool = False,
                                star_pixels=None, remove_stars=True, **kwargs) -> None:

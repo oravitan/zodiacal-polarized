@@ -108,9 +108,9 @@ def get_initialization(p, mueller):
     mueller_noise = 0.02 * np.random.randn(*a.shape + (3,))
 
     p_res = np.clip(p[:, 0] + p_noise, 0, 1)[..., None].repeat(4, axis=-1)
-    a = np.clip(a.copy() + mueller_noise[..., 0])
-    b = np.clip(b.copy() + mueller_noise[..., 1])
-    c = np.clip(c.copy() + mueller_noise[..., 2])
+    a = np.clip(a.copy() + mueller_noise[..., 0], -1, 1)
+    b = np.clip(b.copy() + mueller_noise[..., 1], -1, 1)
+    c = np.clip(c.copy() + mueller_noise[..., 2], -1, 1)
 
     mueller_res = mueller.copy()[..., :3, :3]
     mueller_res[:, 1, 1] = a

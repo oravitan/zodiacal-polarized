@@ -181,7 +181,7 @@ def compare_self_and_calib(true_values, self_values, calib_values, xlabel='', yl
     # plt.legend(fontsize=14)
     ax.set_ylim(min_all, max_all)
     ax.set_xlim(min_all, max_all)
-    ax.axis('scaled')
+    # ax.axis('equal')
     plt.tight_layout()
     if saveto is not None:
         plt.savefig(saveto, format='pdf', bbox_inches='tight', transparent="True", pad_inches=0.1)
