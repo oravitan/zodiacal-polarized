@@ -5,11 +5,13 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import astropy.units as u
+import multiprocessing as mp
 
 from tqdm import tqdm
 from functools import partial
 from typing import List
 from datetime import datetime
+from itertools import repeat
 
 # import the necessary modules
 from zodipol.estimation.self_calibration import SelfCalibration
