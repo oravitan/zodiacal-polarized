@@ -84,13 +84,13 @@ def align_images(zodipol, parser, images_res, rotation_arr, invert=False, fill_v
         rotation_arr = rotation_arr
     res_images = []
     for ii in range(len(rotation_arr)):
-        rot_image = get_rotated_image(zodipol, parser, images_res[..., ii], 0, rotation_arr[ii], fill_value=fill_value)
+        rot_image = get_rotated_image(zodipol, parser, images_res[..., ii], -rotation_arr[ii], fill_value=fill_value)
         res_images.append(rot_image)
     images_res = np.stack(res_images, axis=-1)
     return images_res
 
 
-def get_rotated_image(zodipol, parser, images, rotation_from, rotation_to, fill_value=0, how='nearest'):
+def get_rotated_image(zodipol, parser, images, rotation_to, fill_value=0, how='nearest'):
     """
     Rotate the images to the reference frame.
     :param images: The images to rotate.
@@ -99,18 +99,18 @@ def get_rotated_image(zodipol, parser, images, rotation_from, rotation_to, fill_
     :param how: The interpolation method.
     """
     images = np.nan_to_num(images, nan=fill_value)  # fill nans
-    if rotation_to == rotation_from:  # avoid interpolation issues
+    if rotation_to == 0:  # avoid interpolation issues
         return images
 
     if how == 'linear':
-        return _rotate_linear(images, parser, rotation_from,  rotation_to, zodipol, fill_value=fill_value)
+        return _rotate_linear(images, parser, rotation_to, zodipol, fill_value=fill_value)
     elif how == 'nearest':
-        return _rotate_nearest(images, parser, rotation_from, rotation_to, zodipol, fill_value=fill_value)
+        return _rotate_nearest(images, parser, rotation_to, zodipol, fill_value=fill_value)
     else:
         raise ValueError("Invalid interpolation method")
 
 
-def _rotate_nearest(images, parser, rotation_from, rotation_to, zodipol, fill_value=0):
+def _rotate_nearest(images, parser, rotation_to, zodipol, fill_value=0):
     """
     Rotate the images to the reference frame using nearest neighbor interpolation.
     :param images: The images to rotate.
@@ -118,7 +118,7 @@ def _rotate_nearest(images, parser, rotation_from, rotation_to, zodipol, fill_va
     :param zodipol: The zodipol object.
     :param fill_value: The value to fill non-intersecting pixels.
     """
-    x_ind, y_ind, index_mask = _get_rotation_coords(parser, zodipol, rotation_from, rotation_to)
+    x_ind, y_ind, index_mask = _get_rotation_coords(parser, zodipol, rotation_to)
 
     images_resh = images.reshape(parser["resolution"] + list(images.shape[1:]))
     images_interp = np.full_like(images, fill_value)
@@ -127,7 +127,7 @@ def _rotate_nearest(images, parser, rotation_from, rotation_to, zodipol, fill_va
     return images_interp
 
 
-def _rotate_linear(images, parser, rotation_from, rotation_to, zodipol, fill_value=0):
+def _rotate_linear(images, parser, rotation_to, zodipol, fill_value=0):
     """
     Rotate the images to the reference frame using linear interpolation.
     :param images: The images to rotate.
@@ -135,7 +135,7 @@ def _rotate_linear(images, parser, rotation_from, rotation_to, zodipol, fill_val
     :param zodipol: The zodipol object.
     :param fill_value: The value to fill non-intersecting pixels.
     """
-    theta_from, phi_from = _get_cached_coords(*parser["direction"], rotation_from * u.deg, tuple(parser["resolution"]), zodipol)
+    theta_from, phi_from = _get_cached_coords(*parser["direction"], 0 * u.deg, tuple(parser["resolution"]), zodipol)
     theta_to, phi_to = _get_cached_coords(*parser["direction"], rotation_to * u.deg, tuple(parser["resolution"]), zodipol)
 
     vec_from = ang2vec(theta_from, phi_from)
@@ -150,14 +150,14 @@ def _rotate_linear(images, parser, rotation_from, rotation_to, zodipol, fill_val
 
 
 @lru_cache
-def _get_rotation_coords(parser, zodipol, rotation_from, rotation_to):
+def _get_rotation_coords(parser, zodipol, rotation_to):
     """
     Get the coordinates of the rotated image.
     :param parser: The parser object.
     :param zodipol: The zodipol object.
     :param rotation_to: The rotation angle to rotate to.
     """
-    theta_from, phi_from = _get_cached_coords(*parser["direction"], rotation_from * u.deg, tuple(parser["resolution"]), zodipol)
+    theta_from, phi_from = _get_cached_coords(*parser["direction"], 0 * u.deg, tuple(parser["resolution"]), zodipol)
     theta_to, phi_to = _get_cached_coords(*parser["direction"], rotation_to * u.deg, tuple(parser["resolution"]), zodipol)
 
     vec_from = ang2vec(theta_from, phi_from)

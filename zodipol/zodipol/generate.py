@@ -96,7 +96,8 @@ def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Z
     polarization_angle_spatial_diff = np.zeros_like(polarizance)
     polarization_angle_real = polarization_angle[None, None, :] + polarization_angle_spatial_diff.flatten()[:, None, None]
 
-    obs_orig = [zodipol.make_camera_images(o, polarizance_real, polarization_angle_real, n_realizations=parser["n_realizations"], add_noise=False) for o in obs_biref]
+    obs_orig = [zodipol.make_camera_images(o, polarizance_real, polarization_angle_real, n_realizations=parser["n_realizations"],
+                                           add_noise=True) for o in obs_biref]
     images_orig = zodipol.post_process_images(np.stack(obs_orig, axis=-1))
     return obs, images_orig, polarizance_real.reshape(-1, parser["n_polarization_ang"]), polarization_angle_spatial_diff.reshape((-1)), mueller_truth
 
