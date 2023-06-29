@@ -50,7 +50,7 @@ class ArgParser:
         parser = argparse.ArgumentParser()
         parser.add_argument('--nside', type=int, default=64, help='nside of healpy maps')
         parser.add_argument('--polarizance', '-pol', type=float, default=1., help='Polarizance of imager')
-        parser.add_argument('--n_freq', '-nf', type=int, default=20, help='Number of frequencies for imager response')
+        parser.add_argument('--n_freq', '-nf', type=int, default=40, help='Number of frequencies for imager response')
         parser.add_argument('--n_realizations', '-nr', type=int, default=20, help='Number of realizations')
         parser.add_argument('--n_polarization_ang', '-npa', type=int, default=4, help='Number of polarization angles')
         parser.add_argument('--fov', type=float, default=180., help='Field of view of imager in deg')

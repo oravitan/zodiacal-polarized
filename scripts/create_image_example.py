@@ -23,7 +23,7 @@ if __name__ == '__main__':
                                                              parser["polarization_angle"][None, None, :])
     camera_dolp_color = obs_camera_intensity_full_color.get_dolp()
     plot_skymap(camera_intensity_full_color[..., 0, 0], format='%.2f')
-    plot_skymap(camera_dolp_color[..., 1], format='%.2f', saveto=f'outputs/camera_dolp.pdf')
+    plot_skymap(camera_dolp_color[..., 0], format='%.2f', saveto=f'outputs/camera_dolp.pdf')
 
     obs = zodipol.create_observation(theta=parser["direction"][0], phi=parser["direction"][1], lonlat=False, new_isl=parser["new_isl"])
     obs = obs.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"])
