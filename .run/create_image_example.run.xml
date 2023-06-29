@@ -13,7 +13,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/scripts/create_image_example.py" />
-    <option name="PARAMETERS" value="-res 300 200 --fov 5 -dir 80 50 -nr 20 -par -ip exposure_time 60*u.s -du 0.1 --isl --planetary" />
+    <option name="PARAMETERS" value="-res 300 200 --fov 5 -dir 90 55 -nr 20 -par -ip exposure_time 60*u.s -du 0.1 --isl --planetary" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

@@ -150,9 +150,9 @@ class Imager:
     def get_A_gamma(self, frequency, frequency_weight):
         wavelength = frequency.to(u.um, equivalencies=u.spectral())
         gamma = (self._get_energy(1) * (wavelength[None, None, :] / (h * c))).to('m^2 sr / W')
-        toa = 1 * u.um ** -1
-        A_gamma = - 1 / np.trapz(toa * gamma * frequency_weight, wavelength)
-        return A_gamma
+        conv = 1 / np.trapz(frequency_weight, -wavelength)
+        A_gamma = 1 / np.trapz(conv * gamma * frequency_weight, -wavelength)
+        return A_gamma.ravel()
 
     # ------------------------------------------------
     # ----------------- Noise models -----------------
