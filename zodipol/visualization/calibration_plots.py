@@ -77,7 +77,7 @@ def plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto=None):
     """
     fig, ax = plt.subplots(3, 1, figsize=(6, 5), sharex=True)
     ax[0].plot(cost_itr, lw=3)
-    ax[0].set_ylabel('Intensity RMSE\n($electrons^2$)', fontsize=16)
+    ax[0].set_ylabel('Intensity RMSE\n(electrons per-pixels)', fontsize=16)
     ax[0].tick_params(labelsize=16)
     ax[0].grid()
     ax[0].set_ylim(0, None)
@@ -160,20 +160,19 @@ def plot_all_calibration_props(p, biref, resolution, saveto=None, p_kwargs=None,
     plt.show()
 
 
-def compare_self_and_calib(true_values, self_values, calib_values, xlabel='', ylabel='', saveto=None, n_points=200, ax=None):
-    if n_points is not None:
-        len_data = len(true_values)
-        chosen_ind = np.random.randint(0, len_data, n_points)
-        true_values_, self_values_, calib_values_ = true_values[chosen_ind], self_values[chosen_ind], calib_values[chosen_ind]
-    else:
-        true_values_, self_values_, calib_values_ = true_values, self_values, calib_values
-    min_all = np.min([np.nanmin(true_values_), np.nanmin(self_values_)])
-    max_all = np.max([np.nanmax(true_values_), np.nanmax(self_values_)])
+def compare_self_and_calib(self_true_values, self_values, calib_true_values, calib_values, xlabel='', ylabel='', saveto=None, n_points=200, ax=None):
+    self_chosen_ind = np.random.randint(0, len(self_true_values), n_points)
+    self_true_values_, self_values_ = self_true_values[self_chosen_ind], self_values[self_chosen_ind]
+    calib_chosen_ind = np.random.randint(0, len(calib_true_values), n_points)
+    calib_true_values_, calib_values_ = calib_true_values[calib_chosen_ind], calib_values[calib_chosen_ind]
+
+    min_all = np.min([np.nanmin((self_true_values_, calib_true_values_)), np.nanmin((self_true_values_, calib_true_values_))])
+    max_all = np.max([np.nanmax((self_true_values_, calib_true_values_)), np.nanmax((self_true_values_, calib_true_values_))])
 
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(5, 4))
-    ax.scatter(true_values_, self_values_, label='self-calibration', alpha=1)
-    ax.scatter(true_values_, calib_values_, label='calibration', alpha=1)
+    ax.scatter(self_true_values_, self_values_, label='self-calibration', alpha=1)
+    ax.scatter(calib_true_values_, calib_values_, label='calibration', alpha=1)
     ax.grid()
     ax.set_xlabel(xlabel, fontsize=18)
     ax.set_ylabel(ylabel, fontsize=18)

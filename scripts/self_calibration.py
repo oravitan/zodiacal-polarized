@@ -138,13 +138,13 @@ def compare_calib_self_calib(n_rotations=10, n_itr=10, **kwargs):
     cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                        self_calibration_flag=False, normalize_eigs=True, kernel_size=5, **kwargs)
     fig, ax = plt.subplots(2, 2, figsize=(8, 7))
-    compare_self_and_calib(true_values['p'][:, 0], self_est_values['p'][:, 0], est_values['p'][:, 0],
+    compare_self_and_calib(self_true_values['p'][:, 0], self_est_values['p'][:, 0], true_values['p'][:, 0], est_values['p'][:, 0],
                            xlabel='$P^{\\rm true}$', ylabel='$\hat{P}$', ax=ax[0, 0], n_points=150)
-    compare_self_and_calib(true_values['biref'][:, 1, 1], self_est_values['biref'][:, 1, 1], est_values['biref'][:, 1, 1],
+    compare_self_and_calib(self_true_values['biref'][:, 1, 1], self_est_values['biref'][:, 1, 1], true_values['biref'][:, 1, 1], est_values['biref'][:, 1, 1],
                            xlabel='${\\tt a}^{\\rm true}$', ylabel='$\hat{\\tt a}$', ax=ax[0, 1], n_points=150)
-    compare_self_and_calib(true_values['biref'][:, 1, 2], self_est_values['biref'][:, 1, 2], est_values['biref'][:, 1, 2],
+    compare_self_and_calib(self_true_values['biref'][:, 1, 2], self_est_values['biref'][:, 1, 2], true_values['biref'][:, 1, 2], est_values['biref'][:, 1, 2],
                            xlabel='${\\tt b}^{\\rm true}$', ylabel='$\hat{\\tt b}$', ax=ax[1, 0], n_points=150)
-    compare_self_and_calib(true_values['biref'][:, 2, 2], self_est_values['biref'][:, 2, 2], est_values['biref'][:, 2, 2],
+    compare_self_and_calib(self_true_values['biref'][:, 2, 2], self_est_values['biref'][:, 2, 2], true_values['biref'][:, 2, 2], est_values['biref'][:, 2, 2],
                            xlabel='${\\tt c}^{\\rm true}$', ylabel='$\hat{\\tt c}$', ax=ax[1, 1], n_points=150)
     plt.tight_layout()
     fig.savefig(f'{outputs_dir}/compare_calib_self_calib.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0.1)
