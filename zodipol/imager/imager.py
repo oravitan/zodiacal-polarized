@@ -65,12 +65,12 @@ class Imager:
         :param channel: channel (red, green, blue)
         :return: imager quantum efficiency response
         """
-        if channel == 'red' or channel == 'r':
-            return np.interp(wavelength, IMAGER_RESPONSE_RED.index, IMAGER_RESPONSE_RED['<Efficiency>']) / 100
+        if channel == 'red' or channel == 'r':  # x2 - a factor for higher quantum efficiency
+            return np.interp(wavelength, IMAGER_RESPONSE_RED.index, IMAGER_RESPONSE_RED['<Efficiency>']) / 100 * 2
         elif channel == 'green' or channel == 'g':
-            return np.interp(wavelength, IMAGER_RESPONSE_GREEN.index, IMAGER_RESPONSE_GREEN['<Efficiency>']) / 100
+            return np.interp(wavelength, IMAGER_RESPONSE_GREEN.index, IMAGER_RESPONSE_GREEN['<Efficiency>']) / 100 * 2
         elif channel == 'blue' or channel == 'b':
-            return np.interp(wavelength, IMAGER_RESPONSE_BLUE.index, IMAGER_RESPONSE_BLUE['<Efficiency>']) / 100
+            return np.interp(wavelength, IMAGER_RESPONSE_BLUE.index, IMAGER_RESPONSE_BLUE['<Efficiency>']) / 100 * 2
         else:
             raise ValueError('Channel must be either red, green or blue')
 

@@ -103,10 +103,10 @@ def main_show_cost(n_rotations=10, n_itr=10, name='self_calib', **kwargs):
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
                       n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
-                      resolution=parser["resolution"], imager_params=parser["imager_params"])
+                      resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut=5 * u.deg)
 
     # generate observations
-    cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser, normalize_eigs=True, kernel_size=5, **kwargs)
+    cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser, normalize_eigs=True, kernel_size=1, **kwargs)
     p_cost, mueller_cost, p_std, mueller_std, p_mad, mueller_mad = list(zip(*clbk_itr))
     plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto=f'{outputs_dir}/self_calibration_cost_itr.pdf')
     plot_deviation_comp(parser, true_values["p"][..., 0], est_values['p'][..., 0],
@@ -130,7 +130,7 @@ def compare_calib_self_calib(n_rotations=10, n_itr=10, **kwargs):
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
                       n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
-                      resolution=parser["resolution"], imager_params=parser["imager_params"])
+                      resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut=5 * u.deg)
 
     # generate observations
     self_cost_itr, self_est_values, self_true_values, self_clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser, self_calibration_flag=True,
@@ -179,7 +179,7 @@ def _run_main_plot_n_obs(inputs):
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
                       n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
-                      resolution=parser["resolution"], imager_params=parser["imager_params"])
+                      resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut=5 * u.deg)
     A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
     cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                        disable=True, normalize_eigs=True,
@@ -217,7 +217,7 @@ def _run_main_plot_exp_time(inputs):
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
                       n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
-                      resolution=parser["resolution"], imager_params=parser["imager_params"])
+                      resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut=5 * u.deg)
     A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
 
     zodipol.imager.exposure_time = exposure_time * u.s
@@ -237,7 +237,7 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, *
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
                       n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
                       n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
-                      resolution=parser["resolution"], imager_params=parser["imager_params"])
+                      resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut= 5 * u.deg)
 
     # now estimate how well we calibration based on direction uncertainty
     A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())

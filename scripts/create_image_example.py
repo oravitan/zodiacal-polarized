@@ -1,4 +1,5 @@
 import logging
+import astropy.units as u
 import numpy as np
 
 from zodipol.utils.argparser import ArgParser
@@ -15,7 +16,8 @@ if __name__ == '__main__':
     logging.info(f'Started run.')
     parser = ArgParser()
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"], n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"], n_freq=parser["n_freq"],
-                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"])
+                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut=5 * u.deg)
+    A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
     obs_full = zodipol.create_full_sky_observation(nside=128, obs_time=parser["obs_time"])
     camera_intensity_full_color = zodipol.make_camera_images_multicolor(obs_full,
                                                                         n_realizations=parser["n_realizations"],
@@ -23,7 +25,7 @@ if __name__ == '__main__':
     obs_camera_intensity_full_color = Observation.from_image(camera_intensity_full_color, parser["polarizance"],
                                                              parser["polarization_angle"][None, None, :])
     camera_dolp_color = obs_camera_intensity_full_color.get_dolp()
-    plot_skymap(camera_intensity_full_color[..., 0, 0], format='%.2f')
+    plot_skymap(camera_intensity_full_color[..., 0, 0] / A_gamma, format='%.2f')
     plot_skymap(camera_dolp_color[..., 0], format='%.2f', saveto=f'outputs/camera_dolp.pdf')
 
     obs = zodipol.create_observation(theta=parser["direction"][0], phi=parser["direction"][1], lonlat=False, new_isl=parser["new_isl"])
@@ -51,11 +53,10 @@ if __name__ == '__main__':
     camera_dolp = obs_camera_intensity.get_dolp()
     camera_aop = obs_camera_intensity.get_aop()
 
-    A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
     print('Median number of electrons: ', np.median(camera_intensity / A_gamma))
 
     logging.info(f'Plotting the camera intensity of the first polarization angle.')
-    plot_satellite_image_indices(camera_intensity, 2, resolution=parser["resolution"], title="Camera Polarized Intensity")
+    plot_satellite_image_indices(camera_intensity / A_gamma, 2, resolution=parser["resolution"], title="Camera Polarized Intensity")
 
     logging.info(f'Plotting the camera polarization.')
     plot_satellite_image(camera_dolp, resolution=parser["resolution"], title="Camera polarization")
@@ -68,9 +69,11 @@ if __name__ == '__main__':
     camera_dolp_noise = obs_camera_intensity_noise.get_dolp()
     camera_aop_noise = obs_camera_intensity_noise.get_aop()
 
+    print('Median number of electrons: ', np.median(camera_intensity_noise / A_gamma))
+
     # Plot the emission of the first polarization angle
     logging.info(f'Plotting the camera intensity of the first polarization angle.')
-    plot_satellite_image_indices(camera_intensity_noise, 4, resolution=parser["resolution"], title="Camera Noised Polarized Intensity")
+    plot_satellite_image_indices(camera_intensity_noise / A_gamma, 2, resolution=parser["resolution"], title="Camera Noised Polarized Intensity")
 
     logging.info(f'Plotting the camera polarization.')
     plot_satellite_image(camera_dolp_noise, resolution=parser["resolution"], title="Camera Noised polarization")

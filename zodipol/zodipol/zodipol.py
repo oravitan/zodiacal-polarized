@@ -18,7 +18,7 @@ INTEGRATED_STARLIGHT_MODEL_PATH = 'saved_models/skymap_flux.npz'
 
 
 class Zodipol:
-    def __init__(self, polarizance: float = 1., fov: float = None,  n_polarization_ang: int = 4, solar_cut=20 * u.deg,
+    def __init__(self, polarizance: float = 1., fov: float = None,  n_polarization_ang: int = 4, solar_cut=30 * u.deg,
                  parallel=False, n_freq: int = 5, isl=True,
                  integrated_starlight_path=INTEGRATED_STARLIGHT_MODEL_PATH, planetary: bool = True, resolution=(2448, 2048),
                  imager_params=None, zodipy_params=None, color='red'):
