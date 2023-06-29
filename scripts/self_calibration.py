@@ -264,7 +264,7 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, *
 
 
 def main():
-    main_show_cost(n_rotations=30, n_itr=10, self_calibration_flag=True)
+    main_show_cost(n_rotations=30, n_itr=5, self_calibration_flag=True)
     main_show_cost(n_rotations=30, n_itr=5, self_calibration_flag=False, name='calib')
     compare_calib_self_calib(n_rotations=30, n_itr=5)
     n_obs_list, cost_n_obs = main_plot_n_obs(n_itr=5, parallel=True, n_core=60)

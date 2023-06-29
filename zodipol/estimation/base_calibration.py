@@ -75,9 +75,9 @@ class BaseCalibration:
         :return: The mean squared error.
         """
         img_model = np.stack([self.forward_model(o) for o in self.obs], axis=-1)
-        rmse = np.nanmean((img_model - images_orig) ** 2) ** 0.5
+        rmse = np.nanmean(np.nansum((img_model - images_orig) ** 2, axis=0) ** 0.5) / np.prod(self.parser["resolution"])
         A_gamma = self.zodipol.imager.get_A_gamma(self.zodipol.frequency, self.zodipol.get_imager_response())
-        rmse_electrons = (np.sqrt(rmse) / A_gamma).si.value.squeeze()
+        rmse_electrons = (rmse / A_gamma).si.value.squeeze()
         return rmse_electrons
 
     def calibrate(self, images_orig, n_itr=5, disable=False, callback=None, init=None, **kwargs) -> tuple:
