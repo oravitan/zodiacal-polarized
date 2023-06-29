@@ -21,7 +21,8 @@ IMAGER_RESPONSE_BLUE = pd.read_csv(IMAGER_RESPONSE_FILE_BLUE, index_col=0)
 class Imager:
     def __init__(self,
                  exposure_time=10 * u.s,
-                 pixel_area=(3.45 * u.um) ** 2,
+                 pixel_area=(7 * u.um) ** 2,
+                 # pixel_area=(3.45 * u.um) ** 2,
                  lens_diameter=60.0 * u.mm,
                  lens_focal_length=86.2 * u.mm,
                  optical_loss=0.96,
