@@ -110,11 +110,13 @@ def main_show_cost(n_rotations=10, n_itr=10, name='self_calib', **kwargs):
     plot_deviation_comp(parser, true_values["p"][..., 0], est_values['p'][..., 0],
                         saveto=f'{outputs_dir}/{name}_polarizance_est.pdf')
     plot_mueller(est_values['biref'] - np.eye(3)[None, ...], parser, cbar=True, saveto=f'{outputs_dir}/{name}_birefringence_est.pdf')
-    plot_all_calibration_props(true_values["p"][..., 0], true_values["biref"], parser["resolution"], saveto=f'{outputs_dir}/{name}_true_values.pdf')
-    p_kwargs = {'vmin': true_values["p"][..., 0].min(), 'vmax': true_values["p"][..., 0].max()}
-    a_kwargs = {'vmin': true_values["biref"][..., 1, 1].min(), 'vmax': true_values["biref"][..., 1, 1].max()}
-    b_kwargs = {'vmin': true_values["biref"][..., 1, 2].min(), 'vmax': true_values["biref"][..., 1, 2].max()}
-    c_kwargs = {'vmin': true_values["biref"][..., 2, 2].min(), 'vmax': true_values["biref"][..., 2, 2].max()}
+
+    p_kwargs = {'vmin': np.nanmin((est_values["p"][..., 0], true_values["p"][..., 0])), 'vmax': np.nanmax((true_values["p"][..., 0], true_values["p"][..., 0]))}
+    a_kwargs = {'vmin': np.nanmin((est_values["biref"][..., 1, 1], true_values["biref"][..., 1, 1])), 'vmax': np.nanmax((est_values["biref"][..., 1, 1], true_values["biref"][..., 1, 1]))}
+    b_kwargs = {'vmin': np.nanmin((est_values["biref"][..., 1, 2], true_values["biref"][..., 1, 2])), 'vmax': np.nanmax((est_values["biref"][..., 1, 2], true_values["biref"][..., 1, 2]))}
+    c_kwargs = {'vmin': np.nanmin((est_values["biref"][..., 2, 2], true_values["biref"][..., 2, 2])), 'vmax': np.nanmax((est_values["biref"][..., 2, 2], true_values["biref"][..., 2, 2]))}
+    plot_all_calibration_props(true_values["p"][..., 0], true_values["biref"], parser["resolution"], saveto=f'{outputs_dir}/{name}_true_values.pdf', p_kwargs=p_kwargs, a_kwargs=a_kwargs,
+                               b_kwargs=b_kwargs, c_kwargs=c_kwargs)
     plot_all_calibration_props(est_values["p"][..., 0], est_values["biref"], parser["resolution"],
                                saveto=f'{outputs_dir}/{name}_est_values.pdf', p_kwargs=p_kwargs, a_kwargs=a_kwargs,
                                b_kwargs=b_kwargs, c_kwargs=c_kwargs)

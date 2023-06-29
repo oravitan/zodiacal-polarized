@@ -50,7 +50,7 @@ class Zodipol:
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
         I += planets_skymap + isl_map
         if isinstance((isl_map + planets_skymap), u.Quantity):
-            star_pixels = ((isl_map + planets_skymap).to(I.unit).value > 0.01).any(axis=1)
+            star_pixels = ((isl_map + planets_skymap) > 1e-21 * u.Unit('W / m^2 sr Hz')).any(axis=1)
         else:
             star_pixels = None
         return Observation(I, Q, U, theta=theta_vec, phi=phi_vec, roll=0, star_pixels=star_pixels).change_roll(roll.to('rad').value)
@@ -67,7 +67,7 @@ class Zodipol:
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
         I += planets_skymap + isl_map
         if isinstance((isl_map + planets_skymap), u.Quantity):
-            star_pixels = ((isl_map + planets_skymap).to(I.unit).value > 0.01).any(axis=1)
+            star_pixels = ((isl_map + planets_skymap) > 1e-21 * u.Unit('W / m^2 sr Hz')).any(axis=1)
         else:
             star_pixels = None
         return Observation(I, Q, U, star_pixels=star_pixels)
