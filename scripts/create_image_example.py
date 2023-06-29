@@ -1,4 +1,5 @@
 import logging
+import numpy as np
 
 from zodipol.utils.argparser import ArgParser
 from zodipol.zodipol.zodipol import Zodipol
@@ -49,6 +50,9 @@ if __name__ == '__main__':
     obs_camera_intensity = Observation.from_image(camera_intensity, parser["polarizance"], parser["polarization_angle"][None, :])
     camera_dolp = obs_camera_intensity.get_dolp()
     camera_aop = obs_camera_intensity.get_aop()
+
+    A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
+    print('Median number of electrons: ', np.median(camera_intensity / A_gamma))
 
     logging.info(f'Plotting the camera intensity of the first polarization angle.')
     plot_satellite_image_indices(camera_intensity, 2, resolution=parser["resolution"], title="Camera Polarized Intensity")

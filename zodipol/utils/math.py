@@ -4,7 +4,7 @@ import astropy.units as u
 
 from functools import lru_cache
 from scipy.interpolate import RegularGridInterpolator
-from scipy.spatial.distance import cdist
+from sklearn.neighbors import NearestNeighbors
 
 xaxis, yaxis, zaxis = [1, 0, 0], [0, 1, 0], [0, 0, 1]
 
@@ -118,13 +118,12 @@ def _rotate_nearest(images, parser, rotation_from, rotation_to, zodipol, fill_va
     :param zodipol: The zodipol object.
     :param fill_value: The value to fill non-intersecting pixels.
     """
-    x_ind, y_ind = _get_rotation_coords(parser, zodipol, rotation_from, rotation_to)
-    # x_ind, y_ind, index_mask = _get_rotation_coords(parser, zodipol, rotation_from, rotation_to)
+    x_ind, y_ind, index_mask = _get_rotation_coords(parser, zodipol, rotation_from, rotation_to)
 
     images_resh = images.reshape(parser["resolution"] + list(images.shape[1:]))
-    # images_interp = np.full_like(images, fill_value)
-    images_interp = images_resh[y_ind, x_ind, ...]
-    # images_interp[index_mask, ...] = images_resh[y_ind[index_mask], x_ind[index_mask], ...]
+    images_interp = np.full_like(images, fill_value)
+    # images_interp = images_resh[y_ind, x_ind, ...]
+    images_interp[index_mask, ...] = images_resh[y_ind[index_mask], x_ind[index_mask], ...]
     return images_interp
 
 
@@ -164,19 +163,15 @@ def _get_rotation_coords(parser, zodipol, rotation_from, rotation_to):
     vec_from = ang2vec(theta_from, phi_from)
     vec_to = ang2vec(theta_to, phi_to)
 
-    d = cdist(vec_from, vec_to, metric='cosine')
-    nearest_ind = np.argmin(d, axis=1)
-    X, Y = np.meshgrid(np.arange(0, 200, 1), np.arange(0, 300, 1))
-    x_ind = X.flatten()[nearest_ind]
-    y_ind = Y.flatten()[nearest_ind]
+    knn = NearestNeighbors(n_neighbors=1, radius=0.4)
+    knn.fit(vec_from)
+    neigh_dist, neigh_ind = knn.kneighbors(vec_to)
 
-    # dx = (vec_from[:, 2].max() - vec_from[:, 2].min()) / parser["resolution"][1]
-    # dy = (vec_from[:, 0].max() - vec_from[:, 0].min()) / parser["resolution"][0]
-    # x_ind = np.round((vec_from[:, 2].max() - vec_to[:, 2]) / dx).astype(int)
-    # y_ind = np.round((vec_to[:, 1] - vec_from[:, 1].min()) / dy).astype(int)
-    # index_mask = (x_ind >= 0) & (x_ind < parser["resolution"][1]) & (y_ind >= 0) & (y_ind < parser["resolution"][0])
-    # return x_ind, y_ind, index_mask
-    return x_ind, y_ind
+    X, Y = np.meshgrid(np.arange(0, 200, 1), np.arange(0, 300, 1))
+    x_ind = X.flatten()[neigh_ind]
+    y_ind = Y.flatten()[neigh_ind]
+    mask_ind = neigh_dist <= np.deg2rad(zodipol.fov / parser['resolution'][0]).value
+    return x_ind.ravel(), y_ind.ravel(), mask_ind.ravel()
 
 
 @lru_cache
