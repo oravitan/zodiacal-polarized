@@ -51,7 +51,7 @@ class SelfCalibration(BaseCalibration):
         self.estimate_birefringence(images, **kwargs)
 
     def _pose_constraints_p(self, p):
-        rho = p[self.nan_mask] / self.init['p'][self.nan_mask, 0, None]
+        rho = p[~self.nan_mask] / self.init['p'][~self.nan_mask, 0, None]
         p /= np.quantile(rho, 0.95)
         p = np.clip(p, 0, 1)
         return p
@@ -133,7 +133,7 @@ class SelfCalibration(BaseCalibration):
         :param roll: roll angle
         :return: realigned observation
         """
-        stokes_interp = get_rotated_image(self.zodipol, self.parser, obs.to_numpy(ndims=3), 0, roll)
+        stokes_interp = get_rotated_image(self.zodipol, self.parser, obs.to_numpy(ndims=3), roll, 0)
         obs_new = Observation(stokes_interp[..., 0], stokes_interp[..., 1], stokes_interp[..., 2], theta=obs.theta,
                               phi=obs.phi, roll=0)
         return obs_new.change_roll(np.deg2rad(roll))
