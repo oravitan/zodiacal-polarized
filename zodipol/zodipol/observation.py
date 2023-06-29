@@ -128,6 +128,10 @@ class Observation:
         :param direction_uncertainty: amount of direction uncertainty of the observation (degrees)
         :return: new Observation object
         """
+        if direction_uncertainty.value < 0:
+            raise ValueError('Circular motion blur must be positive')
+        elif direction_uncertainty.value == 0:
+            return self.copy()
         pixel_size = fov / resolution
         pixels_uncertainty = (direction_uncertainty / pixel_size).value
         pixels_uncertainty = np.concatenate((pixels_uncertainty, [1]))
@@ -180,6 +184,8 @@ class Observation:
         :param n_pixels: number of pixels to dilate
         :param resolution: resolution of the observation
         """
-        px = self.star_pixels.reshape(resolution)
+        self_copy = self.copy()
+        px = self_copy.star_pixels.reshape(resolution)
         px_dilate = dilation(px, disk(n_pixels))
-        self.star_pixels = px_dilate.reshape(self.star_pixels.shape)
+        self_copy.star_pixels = px_dilate.reshape(self_copy.star_pixels.shape)
+        return self_copy

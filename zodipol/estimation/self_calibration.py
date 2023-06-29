@@ -51,8 +51,8 @@ class SelfCalibration(BaseCalibration):
         self.estimate_birefringence(images, **kwargs)
 
     def _pose_constraints_p(self, p):
-        rho = p / self.init['p'][:, 0, None]
-        p /= np.quantile(rho, 0.99)
+        rho = p[self.nan_mask] / self.init['p'][self.nan_mask, 0, None]
+        p /= np.quantile(rho, 0.95)
         p = np.clip(p, 0, 1)
         return p
 
@@ -99,8 +99,7 @@ class SelfCalibration(BaseCalibration):
         interp_images_res = self.aligned_images
         p = align_images(self.zodipol, self.parser, self.p.repeat(self.nobs, axis=-1), rotation_list, invert=True)[..., None, :].repeat(self.parser["n_polarization_ang"], axis=-2)
         eta = align_images(self.zodipol, self.parser, self.eta[:, None, None].repeat(self.nobs, axis=-1), rotation_list, invert=True) + self.parser["polarization_angle"][:, None]
-        mueller = self.biref
-        mueller_rot = mueller[..., None].repeat(self.nobs, axis=-1)
+        mueller_rot = self.biref[..., None].repeat(self.nobs, axis=-1)
         mueller_rot = align_images(self.zodipol, self.parser, mueller_rot, rotation_list, invert=True)
         rotation_mat = get_rotation_mueller_matrix(np.deg2rad(rotation_list))[None, ...].repeat(images.shape[0], axis=0)
         I_est, Q_est, U_est = self.estimate_IQU(interp_images_res, rotation_mat, p, eta, mueller_rot)
@@ -108,8 +107,7 @@ class SelfCalibration(BaseCalibration):
         obs_est_rot = [self.realign_observation(obs_est, roll) for roll in rotation_list]
         return obs_est_rot
 
-    @staticmethod
-    def estimate_IQU(intensity, rotation_mat, polarizance, angles, mueller):
+    def estimate_IQU(self, intensity, rotation_mat, polarizance, angles, mueller):
         """
         Calculate the Stokes parameters of the signal.
         :param intensity: The intensity of the signal.
@@ -135,7 +133,7 @@ class SelfCalibration(BaseCalibration):
         :param roll: roll angle
         :return: realigned observation
         """
-        stokes_interp = get_rotated_image(self.zodipol, self.parser, obs.to_numpy(ndims=3), roll)
+        stokes_interp = get_rotated_image(self.zodipol, self.parser, obs.to_numpy(ndims=3), 0, roll)
         obs_new = Observation(stokes_interp[..., 0], stokes_interp[..., 1], stokes_interp[..., 2], theta=obs.theta,
                               phi=obs.phi, roll=0)
         return obs_new.change_roll(np.deg2rad(roll))

@@ -190,16 +190,15 @@ class BaseCalibration:
         F_k_inv = np.linalg.pinv(F_K)
         biref_elems = np.einsum('...ij,...j->...i', F_k_inv, N_I)
 
-        # smooth biref
-        if kernel_size is not None:
-            biref_elems = self._biref_smooth_kernel(biref_elems, kernel_size, resolution=self.parser["resolution"])
-
         biref = np.stack((np.stack((biref_elems[..., 0], biref_elems[..., 1]), axis=-1),
                           np.stack((biref_elems[..., 1], biref_elems[..., 2]), axis=-1)), axis=-1)
 
         if normalize_eigs:
             biref = self._biref_normalize_eigs(biref)
-            biref_elems /= np.clip(np.abs(biref_elems).max(), 1, None)
+
+        # smooth biref
+        if kernel_size is not None:
+            biref = self._biref_smooth_kernel(biref, kernel_size, resolution=self.parser["resolution"])
 
         biref = np.clip(biref, -1, 1)
 
@@ -230,7 +229,7 @@ class BaseCalibration:
         :param kernel_size: The size of the kernel used for the uniform filter.
         :param resolution: The resolution of the image.
         """
-        biref_resh = biref.reshape(resolution + list(biref.shape[1:]))
+        biref_resh = biref.reshape(resolution + [np.prod(biref.shape[1:])])
         biref_smooth = np.stack([uniform_filter(biref_resh[..., ii], size=kernel_size, mode='nearest') for ii in
                                  range(biref_resh.shape[-1])], axis=-1)
         biref = biref_smooth.reshape(biref.shape)
