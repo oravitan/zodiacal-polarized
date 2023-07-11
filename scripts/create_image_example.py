@@ -92,9 +92,12 @@ if __name__ == '__main__':
 
     # make color images
     import matplotlib.pyplot as plt
-    camera_intensity_color = zodipol.make_camera_images_multicolor(obs, n_realizations=1, add_noise=False)
+    gamma = 0.6
+    # camera_intensity_color = zodipol.make_camera_images_multicolor(obs, n_realizations=1, add_noise=False)
+    camera_intensity_color = binned_emission[:, [5, 12, 22], :]
     I_color = camera_intensity_color.reshape((300, 200, 3, 4))
     I_color_norm = (I_color - I_color.min()) / (I_color.max() - I_color.min())
+    I_color_norm = I_color_norm ** gamma
 
     fig, ax = plt.subplots(2, 2, figsize=(10, 10))
     ax[0, 0].imshow(I_color_norm[..., 0]); ax[0, 0].axis('off')
@@ -104,3 +107,4 @@ if __name__ == '__main__':
     fig.tight_layout()
     plt.savefig('outputs/image_exmaple_color.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
+    pass

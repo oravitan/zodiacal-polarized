@@ -98,30 +98,19 @@ def cost_callback(calib: SelfCalibration, p: np.ndarray, eta: np.ndarray, muelle
     return p_cost, mueller_cost, p_std, mueller_std, p_mad, mueller_mad
 
 
-def main_show_cost(n_rotations=10, n_itr=10, name='self_calib', **kwargs):
-    parser = ArgParser()
-    zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
-                      n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
-                      n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
-                      resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut=5 * u.deg)
-
-    # generate observations
-    cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser, normalize_eigs=True, kernel_size=1, **kwargs)
+def main_show_cost(parser, cost_itr, est_values, true_values, clbk_itr, name='self_calib', p_kwargs=None, a_kwargs=None, b_kwargs=None, c_kwargs=None):
     p_cost, mueller_cost, p_std, mueller_std, p_mad, mueller_mad = list(zip(*clbk_itr))
     plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto=f'{outputs_dir}/self_calibration_cost_itr.pdf')
-    plot_deviation_comp(parser, true_values["p"][..., 0], est_values['p'][..., 0],
-                        saveto=f'{outputs_dir}/{name}_polarizance_est.pdf')
-    plot_mueller(est_values['biref'] - np.eye(3)[None, ...], parser, cbar=True, saveto=f'{outputs_dir}/{name}_birefringence_est.pdf')
+    # plot_deviation_comp(parser, true_values["p"][..., 0], est_values['p'][..., 0],
+    #                     saveto=f'{outputs_dir}/{name}_polarizance_est.pdf')
+    # plot_mueller(est_values['biref'] - np.eye(3)[None, ...], parser, cbar=True, saveto=f'{outputs_dir}/{name}_birefringence_est.pdf')
 
-    p_kwargs = {'vmin': np.nanmin((est_values["p"][..., 0], true_values["p"][..., 0])), 'vmax': np.nanmax((true_values["p"][..., 0], true_values["p"][..., 0]))}
-    a_kwargs = {'vmin': np.nanmin((est_values["biref"][..., 1, 1], true_values["biref"][..., 1, 1])), 'vmax': np.nanmax((est_values["biref"][..., 1, 1], true_values["biref"][..., 1, 1]))}
-    b_kwargs = {'vmin': np.nanmin((est_values["biref"][..., 1, 2], true_values["biref"][..., 1, 2])), 'vmax': np.nanmax((est_values["biref"][..., 1, 2], true_values["biref"][..., 1, 2]))}
-    c_kwargs = {'vmin': np.nanmin((est_values["biref"][..., 2, 2], true_values["biref"][..., 2, 2])), 'vmax': np.nanmax((est_values["biref"][..., 2, 2], true_values["biref"][..., 2, 2]))}
     plot_all_calibration_props(true_values["p"][..., 0], true_values["biref"], parser["resolution"], saveto=f'{outputs_dir}/{name}_true_values.pdf', p_kwargs=p_kwargs, a_kwargs=a_kwargs,
                                b_kwargs=b_kwargs, c_kwargs=c_kwargs)
     plot_all_calibration_props(est_values["p"][..., 0], est_values["biref"], parser["resolution"],
                                saveto=f'{outputs_dir}/{name}_est_values.pdf', p_kwargs=p_kwargs, a_kwargs=a_kwargs,
                                b_kwargs=b_kwargs, c_kwargs=c_kwargs)
+    print(f'{name} results: polarizance cost: {p_cost[-1]:.3f}, mueller cost: {mueller_cost[-1]:.3f}')
     pass
 
 
@@ -135,8 +124,23 @@ def compare_calib_self_calib(n_rotations=10, n_itr=10, **kwargs):
     # generate observations
     self_cost_itr, self_est_values, self_true_values, self_clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser, self_calibration_flag=True,
                                                                        normalize_eigs=True, kernel_size=5, **kwargs)
+
     cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                        self_calibration_flag=False, normalize_eigs=True, kernel_size=5, **kwargs)
+
+    p_kwargs = {'vmin': np.nanmin((est_values["p"][..., 0], true_values["p"][..., 0], self_est_values["p"][..., 0], self_true_values["p"][..., 0])),
+                'vmax': np.nanmax((true_values["p"][..., 0], true_values["p"][..., 0], self_est_values["p"][..., 0], self_true_values["p"][..., 0]))}
+    a_kwargs = {'vmin': np.nanmin((est_values["biref"][..., 1, 1], true_values["biref"][..., 1, 1], self_est_values["biref"][..., 1, 1], self_true_values["biref"][..., 1, 1])),
+                'vmax': np.nanmax((est_values["biref"][..., 1, 1], true_values["biref"][..., 1, 1], self_est_values["biref"][..., 1, 1], self_true_values["biref"][..., 1, 1]))}
+    b_kwargs = {'vmin': np.nanmin((est_values["biref"][..., 1, 2], true_values["biref"][..., 1, 2], self_est_values["biref"][..., 1, 2], self_true_values["biref"][..., 1, 2])),
+                'vmax': np.nanmax((est_values["biref"][..., 1, 2], true_values["biref"][..., 1, 2], self_est_values["biref"][..., 1, 2], self_true_values["biref"][..., 1, 2]))}
+    c_kwargs = {'vmin': np.nanmin((est_values["biref"][..., 2, 2], true_values["biref"][..., 2, 2], self_est_values["biref"][..., 2, 2], self_true_values["biref"][..., 2, 2])),
+                'vmax': np.nanmax((est_values["biref"][..., 2, 2], true_values["biref"][..., 2, 2], self_est_values["biref"][..., 2, 2], self_true_values["biref"][..., 2, 2]))}
+    main_show_cost(parser, cost_itr, est_values, true_values, clbk_itr, name='calib', p_kwargs=p_kwargs, a_kwargs=a_kwargs,
+                   b_kwargs=b_kwargs, c_kwargs=c_kwargs)
+    main_show_cost(parser, self_cost_itr, self_est_values, self_true_values, self_clbk_itr, name='self_calib', p_kwargs=p_kwargs, a_kwargs=a_kwargs,
+                   b_kwargs=b_kwargs, c_kwargs=c_kwargs)
+
     fig, ax = plt.subplots(2, 2, figsize=(8, 7))
     compare_self_and_calib(self_true_values['p'][:, 0], self_est_values['p'][:, 0], true_values['p'][:, 0], est_values['p'][:, 0],
                            xlabel='$P^{\\rm true}$', ylabel='$\hat{P}$', ax=ax[0, 0], n_points=150)
@@ -150,6 +154,7 @@ def compare_calib_self_calib(n_rotations=10, n_itr=10, **kwargs):
     fig.savefig(f'{outputs_dir}/compare_calib_self_calib.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0.1)
     plt.show()
     pass
+
 
 def main_plot_n_obs(n_itr=10, n_rotations_list=None, n_rpt=15, parallel=False, n_core=4, **kwargs):
     if n_rotations_list is None:
@@ -169,6 +174,8 @@ def main_plot_n_obs(n_itr=10, n_rotations_list=None, n_rpt=15, parallel=False, n
     rot_biref_mse, biref_err = np.mean(res_cost_arr[..., 2], axis=1), np.std(res_cost_arr[..., 2], axis=1)
     plot_res_comp_plot(n_rotations_list, rot_p_mse, rot_biref_mse, saveto=f"{outputs_dir}/calib_mse_n_rotations.pdf",
                        xlabel="K", ylim1=(0, None), ylim2=(0, None), p_mse_err=p_err, biref_mse_err=biref_err)
+    print(f"ROT p_mse: {rot_p_mse}")
+    print(f"ROT biref_mse: {rot_biref_mse}")
     return n_rotations_list, res_cost_arr
 
 
@@ -190,7 +197,7 @@ def _run_main_plot_n_obs(inputs):
 
 def main_plot_exp_time(n_rotations=30, n_rpt=15, n_itr=10, exposure_time_list=None, parallel=False, n_core=4, **kwargs):
     if exposure_time_list is None:
-        exposure_time_list = np.logspace(np.log10(10), np.log10(60), 10)
+        exposure_time_list = np.logspace(np.log10(5), np.log10(30), 10)
     exposure_time_list_ = np.repeat(exposure_time_list, n_rpt)
 
     if parallel:
@@ -207,6 +214,8 @@ def main_plot_exp_time(n_rotations=30, n_rpt=15, n_itr=10, exposure_time_list=No
 
     plot_res_comp_plot(exposure_time_list, ex_p_mse, ex_biref_mse, saveto=f"{outputs_dir}/calib_mse_exposure_time.pdf",
                        xlabel="$\Delta t \;(s)$", ylim1=(0, None), ylim2=(0, None), p_mse_err=p_err, biref_mse_err=biref_err)
+    print(f"EXP p_mse: {ex_p_mse}")
+    print(f"EXP biref_mse: {ex_biref_mse}")
     return exposure_time_list, res_cost_arr
 
 
@@ -264,10 +273,8 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, *
 
 
 def main():
-    main_show_cost(n_rotations=30, n_itr=5, self_calibration_flag=True)
-    main_show_cost(n_rotations=30, n_itr=5, self_calibration_flag=False, name='calib')
-    compare_calib_self_calib(n_rotations=30, n_itr=5)
-    n_obs_list, cost_n_obs = main_plot_n_obs(n_itr=5, parallel=True, n_core=60)
+    # compare_calib_self_calib(n_rotations=30, n_itr=5)
+    # n_obs_list, cost_n_obs = main_plot_n_obs(n_itr=5, parallel=True, n_core=60)
     exp_t_list, cost_expo = main_plot_exp_time(n_rotations=30, n_itr=5, parallel=True, n_core=60)
     dir_unc_list, cost_dir_unc = main_plot_uncertainty(n_rotations=30, n_itr=5)
     pass
