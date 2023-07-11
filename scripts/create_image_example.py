@@ -1,4 +1,6 @@
 import logging
+import astropy.units as u
+import numpy as np
 
 from zodipol.utils.argparser import ArgParser
 from zodipol.zodipol.zodipol import Zodipol
@@ -14,7 +16,8 @@ if __name__ == '__main__':
     logging.info(f'Started run.')
     parser = ArgParser()
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"], n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"], n_freq=parser["n_freq"],
-                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"])
+                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut=5 * u.deg)
+    A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
     obs_full = zodipol.create_full_sky_observation(nside=128, obs_time=parser["obs_time"])
     camera_intensity_full_color = zodipol.make_camera_images_multicolor(obs_full,
                                                                         n_realizations=parser["n_realizations"],
@@ -22,8 +25,8 @@ if __name__ == '__main__':
     obs_camera_intensity_full_color = Observation.from_image(camera_intensity_full_color, parser["polarizance"],
                                                              parser["polarization_angle"][None, None, :])
     camera_dolp_color = obs_camera_intensity_full_color.get_dolp()
-    plot_skymap(camera_intensity_full_color[..., 0, 0], format='%.2f')
-    plot_skymap(camera_dolp_color[..., 1], format='%.2f', saveto=f'outputs/camera_dolp.pdf')
+    plot_skymap(camera_intensity_full_color[..., 0, 0] / A_gamma, format='%.2f')
+    plot_skymap(camera_dolp_color[..., 0], format='%.2f', saveto=f'outputs/camera_dolp.pdf')
 
     obs = zodipol.create_observation(theta=parser["direction"][0], phi=parser["direction"][1], lonlat=False, new_isl=parser["new_isl"])
     obs = obs.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"])
@@ -50,8 +53,10 @@ if __name__ == '__main__':
     camera_dolp = obs_camera_intensity.get_dolp()
     camera_aop = obs_camera_intensity.get_aop()
 
+    print('Median number of electrons: ', np.median(camera_intensity / A_gamma))
+
     logging.info(f'Plotting the camera intensity of the first polarization angle.')
-    plot_satellite_image_indices(camera_intensity, 2, resolution=parser["resolution"], title="Camera Polarized Intensity")
+    plot_satellite_image_indices(camera_intensity / A_gamma, 2, resolution=parser["resolution"], title="Camera Polarized Intensity")
 
     logging.info(f'Plotting the camera polarization.')
     plot_satellite_image(camera_dolp, resolution=parser["resolution"], title="Camera polarization")
@@ -64,9 +69,11 @@ if __name__ == '__main__':
     camera_dolp_noise = obs_camera_intensity_noise.get_dolp()
     camera_aop_noise = obs_camera_intensity_noise.get_aop()
 
+    print('Median number of electrons: ', np.median(camera_intensity_noise / A_gamma))
+
     # Plot the emission of the first polarization angle
     logging.info(f'Plotting the camera intensity of the first polarization angle.')
-    plot_satellite_image_indices(camera_intensity_noise, 4, resolution=parser["resolution"], title="Camera Noised Polarized Intensity")
+    plot_satellite_image_indices(camera_intensity_noise / A_gamma, 2, resolution=parser["resolution"], title="Camera Noised Polarized Intensity")
 
     logging.info(f'Plotting the camera polarization.')
     plot_satellite_image(camera_dolp_noise, resolution=parser["resolution"], title="Camera Noised polarization")
@@ -85,9 +92,12 @@ if __name__ == '__main__':
 
     # make color images
     import matplotlib.pyplot as plt
-    camera_intensity_color = zodipol.make_camera_images_multicolor(obs, n_realizations=1, add_noise=False)
+    gamma = 0.6
+    # camera_intensity_color = zodipol.make_camera_images_multicolor(obs, n_realizations=1, add_noise=False)
+    camera_intensity_color = binned_emission[:, [5, 12, 22], :]
     I_color = camera_intensity_color.reshape((300, 200, 3, 4))
     I_color_norm = (I_color - I_color.min()) / (I_color.max() - I_color.min())
+    I_color_norm = I_color_norm ** gamma
 
     fig, ax = plt.subplots(2, 2, figsize=(10, 10))
     ax[0, 0].imshow(I_color_norm[..., 0]); ax[0, 0].axis('off')
@@ -97,3 +107,4 @@ if __name__ == '__main__':
     fig.tight_layout()
     plt.savefig('outputs/image_exmaple_color.pdf', format='pdf', bbox_inches='tight', transparent="True", pad_inches=0)
     plt.show()
+    pass

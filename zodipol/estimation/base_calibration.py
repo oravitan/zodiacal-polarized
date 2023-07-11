@@ -27,6 +27,7 @@ class BaseCalibration:
         self.p = None
         self.eta = None
         self.biref = None
+        self.init = None
         self.zodipol = zodipol
         self.parser = parser
         self.initialize()
@@ -53,6 +54,7 @@ class BaseCalibration:
         # create the birefringence matrix
         self.biref = self.zodipol.imager.get_birefringence_mueller_matrix(delta, alpha)[..., :3, :3]
         self.biref = (init['biref'] if 'biref' in init else self.biref)
+        self.init = {'p': self.p, 'eta': self.eta, 'biref': self.biref}
 
     def forward_model(self, obs: Observation) -> u.Quantity:
         """
@@ -73,9 +75,9 @@ class BaseCalibration:
         :return: The mean squared error.
         """
         img_model = np.stack([self.forward_model(o) for o in self.obs], axis=-1)
-        rmse = np.nanmean((img_model - images_orig) ** 2) ** 0.5
+        rmse = np.nanmean(np.nansum((img_model - images_orig) ** 2, axis=0) ** 0.5) / np.prod(self.parser["resolution"])
         A_gamma = self.zodipol.imager.get_A_gamma(self.zodipol.frequency, self.zodipol.get_imager_response())
-        rmse_electrons = (np.sqrt(rmse) / A_gamma).si.value.squeeze()
+        rmse_electrons = (rmse / A_gamma).si.value.squeeze()
         return rmse_electrons
 
     def calibrate(self, images_orig, n_itr=5, disable=False, callback=None, init=None, **kwargs) -> tuple:
@@ -109,7 +111,7 @@ class BaseCalibration:
         """
         ...
 
-    def estimate_polarizance(self, images: u.Quantity, kernel_size=None, star_pixels=None, **kwargs) -> None:
+    def estimate_polarizance(self, images: u.Quantity, kernel_size=None, star_pixels=None, remove_stars=True, **kwargs) -> None:
         """
         Estimate the polarization of every pixel.
         :param images: The images.
@@ -125,8 +127,9 @@ class BaseCalibration:
         # WLS
         if star_pixels is None:
             star_pixels = np.stack([o.star_pixels for o in self.obs], axis=-1)
-        stokes_tag = np.einsum('ij...,ij->ij...', stokes_tag, ~star_pixels)
-        intensity = np.einsum('i...j,ij->i...j', intensity, ~star_pixels)
+        if remove_stars:
+            stokes_tag = np.einsum('ij...,ij->ij...', stokes_tag, ~star_pixels)
+            intensity = np.einsum('i...j,ij->i...j', intensity, ~star_pixels)
 
         stokes_I, stokes_QU = stokes_tag[..., 0], stokes_tag[..., 1:]
         intensity_I = np.moveaxis(intensity, -2, -1) - 0.5 * stokes_I[..., None]
@@ -137,17 +140,17 @@ class BaseCalibration:
         pseudo_inv = np.linalg.pinv(S_P)
         p_est = np.einsum('...ij,...j->...i', pseudo_inv, intensity_I)
 
-        # if kernel_size is not None:
-        #     p_resh = p_est.reshape(self.parser["resolution"])
-        #     p_smooth = uniform_filter(p_resh, size=kernel_size, mode='nearest')
-        #     p_est = p_smooth.reshape(p_est.shape)
-
-        p_est = np.clip(p_est, 0, 1)
+        p_est = self._pose_constraints_p(p_est)
         p_est = p_est.repeat(4, axis=-1)
         self.p = p_est
 
+    @staticmethod
+    def _pose_constraints_p(p):
+        p = np.clip(p, 0, 1)
+        return p
+
     def estimate_birefringence(self, images: u.Quantity, kernel_size: int = None, normalize_eigs: bool = False,
-                               star_pixels=None, **kwargs) -> None:
+                               star_pixels=None, remove_stars=True, **kwargs) -> None:
         """
         Estimate the birefringence of every pixel.
         :param images: The images.
@@ -165,8 +168,9 @@ class BaseCalibration:
         # WLS
         if star_pixels is None:
             star_pixels = np.stack([o.star_pixels for o in self.obs], axis=-1)
-        stokes = np.einsum('i...j,ij->i...j', stokes, ~star_pixels)
-        intensity = np.einsum('ij...,ij->ij...', intensity, ~star_pixels)
+        if remove_stars:
+            stokes = np.einsum('i...j,ij->i...j', stokes, ~star_pixels)
+            intensity = np.einsum('ij...,ij->ij...', intensity, ~star_pixels)
 
         stokes_I, stokes_QU = stokes[:, 0, :], stokes[:, 1:, :]
         intensity_I = intensity - 0.5 * stokes_I[..., None]
@@ -186,16 +190,15 @@ class BaseCalibration:
         F_k_inv = np.linalg.pinv(F_K)
         biref_elems = np.einsum('...ij,...j->...i', F_k_inv, N_I)
 
-        # smooth biref
-        if kernel_size is not None:
-            biref_elems = self._biref_smooth_kernel(biref_elems, kernel_size, resolution=self.parser["resolution"])
-
         biref = np.stack((np.stack((biref_elems[..., 0], biref_elems[..., 1]), axis=-1),
                           np.stack((biref_elems[..., 1], biref_elems[..., 2]), axis=-1)), axis=-1)
 
         if normalize_eigs:
             biref = self._biref_normalize_eigs(biref)
-            biref_elems /= np.clip(np.abs(biref_elems).max(), 1, None)
+
+        # smooth biref
+        if kernel_size is not None:
+            biref = self._biref_smooth_kernel(biref, kernel_size, resolution=self.parser["resolution"])
 
         biref = np.clip(biref, -1, 1)
 
@@ -226,7 +229,7 @@ class BaseCalibration:
         :param kernel_size: The size of the kernel used for the uniform filter.
         :param resolution: The resolution of the image.
         """
-        biref_resh = biref.reshape(resolution + list(biref.shape[1:]))
+        biref_resh = biref.reshape(resolution + [np.prod(biref.shape[1:])])
         biref_smooth = np.stack([uniform_filter(biref_resh[..., ii], size=kernel_size, mode='nearest') for ii in
                                  range(biref_resh.shape[-1])], axis=-1)
         biref = biref_smooth.reshape(biref.shape)

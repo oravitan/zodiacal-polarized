@@ -50,16 +50,11 @@ class SelfCalibration(BaseCalibration):
         self.estimate_polarizance(images, **kwargs)
         self.estimate_birefringence(images, **kwargs)
 
-    def estimate_polarizance(self, images, **kwargs):
-        """
-        Estimate the polarizance.
-        :param images: original images
-        :param kwargs: additional keyword arguments
-        """
-        super().estimate_polarizance(images, **kwargs)
-        max_p = (kwargs['max_p'] if 'max_p' in kwargs else 1)
-        self.p = self.p - np.quantile(self.p[~self.nan_mask], 0.95) + max_p
-        self.p = np.clip(self.p, 0, 1)
+    def _pose_constraints_p(self, p):
+        rho = p[~self.nan_mask] / self.init['p'][~self.nan_mask, 0, None]
+        p /= np.quantile(rho, 0.95)
+        p = np.clip(p, 0, 1)
+        return p
 
     def estimate_birefringence(self, images, kernel_size: int = None, normalize_eigs: bool = False, **kwargs):
         """
@@ -104,8 +99,7 @@ class SelfCalibration(BaseCalibration):
         interp_images_res = self.aligned_images
         p = align_images(self.zodipol, self.parser, self.p.repeat(self.nobs, axis=-1), rotation_list, invert=True)[..., None, :].repeat(self.parser["n_polarization_ang"], axis=-2)
         eta = align_images(self.zodipol, self.parser, self.eta[:, None, None].repeat(self.nobs, axis=-1), rotation_list, invert=True) + self.parser["polarization_angle"][:, None]
-        mueller = self.biref
-        mueller_rot = mueller[..., None].repeat(self.nobs, axis=-1)
+        mueller_rot = self.biref[..., None].repeat(self.nobs, axis=-1)
         mueller_rot = align_images(self.zodipol, self.parser, mueller_rot, rotation_list, invert=True)
         rotation_mat = get_rotation_mueller_matrix(np.deg2rad(rotation_list))[None, ...].repeat(images.shape[0], axis=0)
         I_est, Q_est, U_est = self.estimate_IQU(interp_images_res, rotation_mat, p, eta, mueller_rot)
@@ -113,8 +107,7 @@ class SelfCalibration(BaseCalibration):
         obs_est_rot = [self.realign_observation(obs_est, roll) for roll in rotation_list]
         return obs_est_rot
 
-    @staticmethod
-    def estimate_IQU(intensity, rotation_mat, polarizance, angles, mueller):
+    def estimate_IQU(self, intensity, rotation_mat, polarizance, angles, mueller):
         """
         Calculate the Stokes parameters of the signal.
         :param intensity: The intensity of the signal.

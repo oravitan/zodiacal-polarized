@@ -48,7 +48,7 @@ def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Z
         direction_uncertainty = parser["direction_uncertainty"]
     obs = [o.add_radial_blur(direction_uncertainty, list(parser["resolution"])) for o in obs]
     obs = [o.add_direction_uncertainty(parser["fov"], parser["resolution"], direction_uncertainty) for o in obs]
-    [o.dilate_star_pixels(1 + (direction_uncertainty / zodipol.fov * np.min(parser['resolution'])).value.astype(int), parser["resolution"]) for o in obs]
+    obs = [o.dilate_star_pixels(3 + (direction_uncertainty / zodipol.fov * np.min(parser['resolution'])).value.astype(int), parser["resolution"]) for o in obs]
 
     if mode == 'linear':
         delta_val, phi_val = np.pi / 8, np.pi / 6
@@ -104,9 +104,18 @@ def get_initial_parameters(obs: List[Observation], parser: ArgParser, zodipol: Z
 
 def get_initialization(p, mueller):
     p_noise = 0.02 + 0.01 * np.random.randn(p.shape[0])
-    mueller_noise = 0.02 * np.random.randn(*mueller[:, :3, :3].shape)
+    a, b, c = mueller[:, 1, 1], mueller[:, 1, 2], mueller[:, 2, 2]
+    mueller_noise = 0.02 * np.random.randn(*a.shape + (3,))
+
     p_res = np.clip(p[:, 0] + p_noise, 0, 1)[..., None].repeat(4, axis=-1)
+    a = np.clip(a.copy() + mueller_noise[..., 0], -1, 1)
+    b = np.clip(b.copy() + mueller_noise[..., 1], -1, 1)
+    c = np.clip(c.copy() + mueller_noise[..., 2], -1, 1)
+
     mueller_res = mueller.copy()[..., :3, :3]
-    mueller_res += mueller_noise
-    mueller_res = np.clip(mueller_res, -1, 1)
+    mueller_res[:, 1, 1] = a
+    mueller_res[:, 1, 2] = b
+    mueller_res[:, 2, 1] = b
+    mueller_res[:, 2, 2] = c
+
     return {'p': p_res, 'biref': mueller_res}
