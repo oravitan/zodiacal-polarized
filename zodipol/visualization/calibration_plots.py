@@ -77,7 +77,7 @@ def plot_cost_itr(cost_itr, p_cost, mueller_cost, saveto=None):
     """
     fig, ax = plt.subplots(3, 1, figsize=(6, 5), sharex=True)
     ax[0].plot(cost_itr, lw=3)
-    ax[0].set_ylabel('Intensity RMSE\n($electrons^2$)', fontsize=16)
+    ax[0].set_ylabel('Intensity RMSE\n(electrons per-pixels)', fontsize=16)
     ax[0].tick_params(labelsize=16)
     ax[0].grid()
     ax[0].set_ylim(0, None)
@@ -139,15 +139,20 @@ def plot_res_comp_plot(x_value, p_mse, biref_mse, saveto=None, xlabel=None, ylim
     plt.show()
 
 
-def plot_all_calibration_props(p, biref, resolution, saveto=None):
+def plot_all_calibration_props(p, biref, resolution, saveto=None, p_kwargs=None, a_kwargs=None, b_kwargs=None, c_kwargs=None):
+    p_kwargs = {} if p_kwargs is None else p_kwargs
+    a_kwargs = {} if a_kwargs is None else a_kwargs
+    b_kwargs = {} if b_kwargs is None else b_kwargs
+    c_kwargs = {} if c_kwargs is None else c_kwargs
+
     fig, ax = plt.subplots(1, 4, figsize=(11, 3))
-    c0 = ax[0].imshow(p.reshape(resolution)); ax[0].axis('off');
+    c0 = ax[0].imshow(p.reshape(resolution), **p_kwargs); ax[0].axis('off');
     cbar0 = plt.colorbar(c0, ax=ax[0]); cbar0.ax.tick_params(labelsize=16); ax[0].set_title('$P$', fontsize=22)
-    c1 = ax[1].imshow(biref[:, 1, 1].reshape(resolution)); ax[1].axis('off');
+    c1 = ax[1].imshow(biref[:, 1, 1].reshape(resolution), **a_kwargs); ax[1].axis('off');
     cbar1 = plt.colorbar(c1, ax=ax[1]); cbar1.ax.tick_params(labelsize=16); ax[1].set_title('${\\tt a}$', fontsize=22)
-    c2 = ax[2].imshow(biref[:, 1, 2].reshape(resolution)); ax[2].axis('off');
+    c2 = ax[2].imshow(biref[:, 1, 2].reshape(resolution), **b_kwargs); ax[2].axis('off');
     cbar2 = plt.colorbar(c2, ax=ax[2]); cbar2.ax.tick_params(labelsize=16); ax[2].set_title('${\\tt b}$', fontsize=22)
-    c3 = ax[3].imshow(biref[:, 2, 2].reshape(resolution)); ax[3].axis('off');
+    c3 = ax[3].imshow(biref[:, 2, 2].reshape(resolution), **c_kwargs); ax[3].axis('off');
     cbar3 = plt.colorbar(c3, ax=ax[3]); cbar3.ax.tick_params(labelsize=16); ax[3].set_title('${\\tt c}$', fontsize=22)
     fig.tight_layout()
     if saveto is not None:
@@ -155,23 +160,28 @@ def plot_all_calibration_props(p, biref, resolution, saveto=None):
     plt.show()
 
 
-def compare_self_and_calib(true_values, self_values, calib_values, xlabel='', ylabel='', saveto=None, n_points=200):
-    if n_points is not None:
-        len_data = len(true_values)
-        chosen_ind = np.random.randint(0, len_data, n_points)
-        true_values_, self_values_, calib_values_ = true_values[chosen_ind], self_values[chosen_ind], calib_values[chosen_ind]
-    else:
-        true_values_, self_values_, calib_values_ = true_values, self_values, calib_values
+def compare_self_and_calib(self_true_values, self_values, calib_true_values, calib_values, xlabel='', ylabel='', saveto=None, n_points=200, ax=None):
+    self_chosen_ind = np.random.randint(0, len(self_true_values), n_points)
+    self_true_values_, self_values_ = self_true_values[self_chosen_ind], self_values[self_chosen_ind]
+    calib_chosen_ind = np.random.randint(0, len(calib_true_values), n_points)
+    calib_true_values_, calib_values_ = calib_true_values[calib_chosen_ind], calib_values[calib_chosen_ind]
 
-    fig, ax = plt.subplots(1, 1, figsize=(6, 5))
-    plt.scatter(true_values_, self_values_, label='self-calibration', alpha=1)
-    plt.scatter(true_values_, calib_values_, label='calibration', alpha=1)
-    plt.grid()
-    plt.xlabel(xlabel, fontsize=16)
-    plt.ylabel(ylabel, fontsize=16)
-    plt.tick_params(labelsize=14)
-    plt.legend(fontsize=14)
+    min_all = np.min([np.nanmin((self_true_values_, calib_true_values_)), np.nanmin((self_true_values_, calib_true_values_))])
+    max_all = np.max([np.nanmax((self_true_values_, calib_true_values_)), np.nanmax((self_true_values_, calib_true_values_))])
+
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(5, 4))
+    ax.scatter(self_true_values_, self_values_, label='self-calibration', alpha=1)
+    ax.scatter(calib_true_values_, calib_values_, label='calibration', alpha=1)
+    ax.grid()
+    ax.set_xlabel(xlabel, fontsize=18)
+    ax.set_ylabel(ylabel, fontsize=18)
+    ax.tick_params(labelsize=18)
+    # plt.legend(fontsize=14)
+    ax.set_ylim(min_all, max_all)
+    ax.set_xlim(min_all, max_all)
+    # ax.axis('equal')
     plt.tight_layout()
     if saveto is not None:
         plt.savefig(saveto, format='pdf', bbox_inches='tight', transparent="True", pad_inches=0.1)
-    plt.show()
+    # plt.show()

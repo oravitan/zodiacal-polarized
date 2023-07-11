@@ -19,7 +19,7 @@ INTEGRATED_STARLIGHT_MODEL_PATH = 'saved_models/skymap_flux.npz'
 
 class Zodipol:
     def __init__(self, polarizance: float = 1., fov: float = None,  n_polarization_ang: int = 4, solar_cut=30 * u.deg,
-                 parallel=False, n_freq: int = 5, mie_model_path=MIE_MODEL_DEFAULT_PATH, isl=True,
+                 parallel=False, n_freq: int = 5, isl=True,
                  integrated_starlight_path=INTEGRATED_STARLIGHT_MODEL_PATH, planetary: bool = True, resolution=(2448, 2048),
                  imager_params=None, zodipy_params=None, color='red'):
         imager_params = (imager_params if imager_params is not None else {})
@@ -50,7 +50,7 @@ class Zodipol:
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
         I += planets_skymap + isl_map
         if isinstance((isl_map + planets_skymap), u.Quantity):
-            star_pixels = ((isl_map + planets_skymap).to(I.unit).value > 0.01).any(axis=1)
+            star_pixels = ((isl_map + planets_skymap) > 1e-21 * u.Unit('W / m^2 sr Hz')).any(axis=1)
         else:
             star_pixels = None
         return Observation(I, Q, U, theta=theta_vec, phi=phi_vec, roll=0, star_pixels=star_pixels).change_roll(roll.to('rad').value)
@@ -67,7 +67,7 @@ class Zodipol:
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
         I += planets_skymap + isl_map
         if isinstance((isl_map + planets_skymap), u.Quantity):
-            star_pixels = ((isl_map + planets_skymap).to(I.unit).value > 0.01).any(axis=1)
+            star_pixels = ((isl_map + planets_skymap) > 1e-21 * u.Unit('W / m^2 sr Hz')).any(axis=1)
         else:
             star_pixels = None
         return Observation(I, Q, U, star_pixels=star_pixels)
@@ -101,22 +101,21 @@ class Zodipol:
         polarization_angle = polarization_angle if polarization_angle is not None else self.polarization_angle
         noise_params = (noise_params if noise_params is not None else {})
         imager_response = self.get_imager_response(color=color)
-        realization_list = []  # List of the realizations
-        for ii in range(n_realizations):  # take multiple relatizations of the projection
-            binned_emission_real = IQU_to_image(obs.I, obs.Q, obs.U, polarizance, polarization_angle)
 
-            # Calculate the number of photons
-            n_electrons_real = self.imager.intensity_to_number_of_electrons(binned_emission_real, frequency=self.frequency, weights=imager_response)
-            if add_noise:  # Add noise to the image
-                n_electrons_real = self.imager.imager_noise_model(n_electrons_real, **noise_params)
-            else:  # assume no image noise
-                n_electrons_real += self.imager.camera_dark_current_estimation()
-                n_electrons_real = self.imager.camera_post_process(n_electrons_real)
-            camera_intensity_real = self.imager.number_of_electrons_to_intensity(n_electrons_real, self.frequency, imager_response)
-            if fillna is not None:
-                camera_intensity_real = np.nan_to_num(camera_intensity_real, nan=fillna * camera_intensity_real.unit)
-            realization_list.append(camera_intensity_real)
-        camera_intensity_mean = np.stack(realization_list, axis=-1).mean(axis=-1)  # Mean of the realizations
+        binned_emission_real = IQU_to_image(obs.I, obs.Q, obs.U, polarizance, polarization_angle)
+        n_electrons_real = self.imager.intensity_to_number_of_electrons(binned_emission_real, frequency=self.frequency,
+                                                                        weights=imager_response)
+
+        n_electrons_real_rpt = n_electrons_real[..., None].repeat(n_realizations, axis=-1)
+        if add_noise:
+            n_electrons_real_rpt = self.imager.imager_noise_model(n_electrons_real_rpt, **noise_params)
+        else:
+            n_electrons_real_rpt += self.imager.camera_dark_current_estimation()
+            n_electrons_real_rpt = self.imager.camera_post_process(n_electrons_real_rpt)
+        camera_intensity_real = self.imager.number_of_electrons_to_intensity(n_electrons_real_rpt, self.frequency, imager_response)
+        if fillna is not None:
+            camera_intensity_real = np.nan_to_num(camera_intensity_real, nan=fillna * camera_intensity_real.unit)
+        camera_intensity_mean = camera_intensity_real.mean(axis=-1)
         return camera_intensity_mean
 
     def combine_observations(self, obs_list, polarizance=None, polarization_angle=None, fillna=None, color='red'):

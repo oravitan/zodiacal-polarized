@@ -21,11 +21,11 @@ IMAGER_RESPONSE_BLUE = pd.read_csv(IMAGER_RESPONSE_FILE_BLUE, index_col=0)
 class Imager:
     def __init__(self,
                  exposure_time=10 * u.s,
-                 pixel_area=(3.45 * u.um) ** 2,
-                 lens_diameter=60.0 * u.mm,  # 20.0 * u.mm
-                 lens_focal_length=86.2 * u.mm,
+                 pixel_area=(7 * u.um) ** 2,
+                 # pixel_area=(3.45 * u.um) ** 2,
+                 lens_diameter=16.6 * u.mm,
+                 lens_focal_length=24 * u.mm,
                  optical_loss=0.96,
-                 quantum_efficiency=30,
                  std_read=2.31,
                  beta_t=3.51 * (u.s ** -1),
                  full_well=10500,
@@ -49,7 +49,6 @@ class Imager:
         self.lens_diameter = lens_diameter
         self.lens_focal_length = lens_focal_length
         self.optical_loss = optical_loss
-        self.quantum_efficiency = quantum_efficiency
         self.std_read = std_read
         self.beta_t = beta_t
         self.full_well = full_well
@@ -66,12 +65,12 @@ class Imager:
         :param channel: channel (red, green, blue)
         :return: imager quantum efficiency response
         """
-        if channel == 'red' or channel == 'r':
-            return np.interp(wavelength, IMAGER_RESPONSE_RED.index, IMAGER_RESPONSE_RED['<Efficiency>'])
+        if channel == 'red' or channel == 'r':  # x2 - a factor for higher quantum efficiency
+            return np.interp(wavelength, IMAGER_RESPONSE_RED.index, IMAGER_RESPONSE_RED['<Efficiency>']) / 100 * 2
         elif channel == 'green' or channel == 'g':
-            return np.interp(wavelength, IMAGER_RESPONSE_GREEN.index, IMAGER_RESPONSE_GREEN['<Efficiency>'])
+            return np.interp(wavelength, IMAGER_RESPONSE_GREEN.index, IMAGER_RESPONSE_GREEN['<Efficiency>']) / 100 * 2
         elif channel == 'blue' or channel == 'b':
-            return np.interp(wavelength, IMAGER_RESPONSE_BLUE.index, IMAGER_RESPONSE_BLUE['<Efficiency>'])
+            return np.interp(wavelength, IMAGER_RESPONSE_BLUE.index, IMAGER_RESPONSE_BLUE['<Efficiency>']) / 100 * 2
         else:
             raise ValueError('Channel must be either red, green or blue')
 
@@ -111,20 +110,19 @@ class Imager:
         assert frequency is not None or wavelength is not None, 'Either frequency or wavelength range must be provided'
         if intensity.unit.is_equivalent('W / m^2 sr Hz'):
             wavelength = (wavelength if wavelength is not None else frequency.to(u.nm, equivalencies=u.spectral()))
-            jacobian = - c / (wavelength ** 2)
+            jacobian = c / (wavelength ** 2)
             intensity = (intensity * jacobian[None, :, None]).to('W / m^2 sr um')
 
         energy = self._get_energy(intensity)  # Energy
 
         # Calculate the number of electrons per pixel
-        if frequency is None:
-            frequency = wavelength.to(u.THz, equivalencies=u.spectral())
+        if wavelength is None:
+            wavelength = frequency.to(u.THz, equivalencies=u.spectral())
 
-        df = np.gradient(frequency)
-        jacobian = - c / (frequency ** 2)
-        n_electrons = np.einsum('ij...,j->i...', energy,jacobian * df / (h * frequency) * weights)  # Number of electrons per frequency
+        dw = -np.gradient(wavelength)
+        w_factor = wavelength / h / c
+        n_electrons = np.einsum('ij...,j->i...', energy, dw * w_factor * weights)  # Number of electrons per frequency
 
-        # n_electrons = np.sum(n_electrons_per_freq, axis=1)  # Number of electrons integral
         n_electrons = n_electrons.si  # Number of electrons in SI units
         return n_electrons
 
@@ -151,12 +149,11 @@ class Imager:
         return intensity.to('W / m^2 sr')
 
     def get_A_gamma(self, frequency, frequency_weight):
-        focal_param = np.pi * (self.lens_diameter / 2 / self.lens_focal_length) ** 2 * u.sr  # Focal parameter
-        gamma = self.optical_loss * focal_param * self.quantum_efficiency * self.pixel_area * (
-                    1 / (h * frequency[None, None, :]))
-        toa_factor = 1 * u.s  # Top of atmosphere factor
-        A_gamma = 1 / np.trapz(toa_factor * gamma * frequency_weight, frequency) / self.exposure_time
-        return A_gamma
+        wavelength = frequency.to(u.um, equivalencies=u.spectral())
+        gamma = (self._get_energy(1) * (wavelength[None, None, :] / (h * c))).to('m^2 sr / W')
+        conv = 1 / np.trapz(frequency_weight, -wavelength)
+        A_gamma = 1 / np.trapz(conv * gamma * frequency_weight, -wavelength)
+        return A_gamma.ravel()
 
     # ------------------------------------------------
     # ----------------- Noise models -----------------

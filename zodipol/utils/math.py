@@ -4,6 +4,7 @@ import astropy.units as u
 
 from functools import lru_cache
 from scipy.interpolate import RegularGridInterpolator
+from sklearn.neighbors import NearestNeighbors
 
 xaxis, yaxis, zaxis = [1, 0, 0], [0, 1, 0], [0, 0, 1]
 
@@ -95,7 +96,7 @@ def get_rotated_image(zodipol, parser, images, rotation_to, fill_value=0, how='n
     :param images: The images to rotate.
     :param rotation_to: The rotation angle to rotate to.
     :param fill_value: The value to fill non-intersecting pixels.
-    :param method: The interpolation method.
+    :param how: The interpolation method.
     """
     images = np.nan_to_num(images, nan=fill_value)  # fill nans
     if rotation_to == 0:  # avoid interpolation issues
@@ -121,6 +122,7 @@ def _rotate_nearest(images, parser, rotation_to, zodipol, fill_value=0):
 
     images_resh = images.reshape(parser["resolution"] + list(images.shape[1:]))
     images_interp = np.full_like(images, fill_value)
+    # images_interp = images_resh[y_ind, x_ind, ...]
     images_interp[index_mask, ...] = images_resh[y_ind[index_mask], x_ind[index_mask], ...]
     return images_interp
 
@@ -161,12 +163,15 @@ def _get_rotation_coords(parser, zodipol, rotation_to):
     vec_from = ang2vec(theta_from, phi_from)
     vec_to = ang2vec(theta_to, phi_to)
 
-    dx = (vec_from[:, 2].max() - vec_from[:, 2].min()) / parser["resolution"][1]
-    dy = (vec_from[:, 1].max() - vec_from[:, 1].min()) / parser["resolution"][0]
-    x_ind = np.round((vec_from[:, 2].max() - vec_to[:, 2]) / dx).astype(int)
-    y_ind = np.round((vec_to[:, 1] - vec_from[:, 1].min()) / dy).astype(int)
-    index_mask = (x_ind >= 0) & (x_ind < parser["resolution"][1]) & (y_ind >= 0) & (y_ind < parser["resolution"][0])
-    return x_ind, y_ind, index_mask
+    knn = NearestNeighbors(n_neighbors=1, radius=0.4)
+    knn.fit(vec_from)
+    neigh_dist, neigh_ind = knn.kneighbors(vec_to)
+
+    X, Y = np.meshgrid(np.arange(0, 200, 1), np.arange(0, 300, 1))
+    x_ind = X.flatten()[neigh_ind]
+    y_ind = Y.flatten()[neigh_ind]
+    mask_ind = neigh_dist <= np.deg2rad(zodipol.fov / parser['resolution'][0]).value
+    return x_ind.ravel(), y_ind.ravel(), mask_ind.ravel()
 
 
 @lru_cache
