@@ -54,6 +54,9 @@ def get_c2w(theta, phi, roll):
     rot_c_vec = ang2vec(theta, phi)
     if theta == np.pi/2 and phi == 0.0:
         rot_mat = np.identity(4)
+    elif theta == np.pi/2 and (phi == np.pi or phi == -np.pi):
+        rot_mat = transf.rotation_matrix(transf.angle_between_vectors(xaxis, rot_c_vec),
+                                         [0, 0, 1])
     else:
         rot_mat = transf.rotation_matrix(transf.angle_between_vectors(xaxis, rot_c_vec),
                                          transf.vector_product(xaxis, rot_c_vec))
