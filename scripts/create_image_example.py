@@ -16,7 +16,7 @@ if __name__ == '__main__':
     logging.info(f'Started run.')
     parser = ArgParser()
     zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"], n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"], n_freq=parser["n_freq"],
-                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut=5 * u.deg)
+                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut=10 * u.deg)
     A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
     obs_full = zodipol.create_full_sky_observation(nside=128, obs_time=parser["obs_time"])
     camera_intensity_full_color = zodipol.make_camera_images_multicolor(obs_full,
