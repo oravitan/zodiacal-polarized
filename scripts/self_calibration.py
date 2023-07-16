@@ -53,7 +53,7 @@ def self_calibrate(zodipol: Zodipol, parser: ArgParser, rotation_list: List[int]
     """
     theta0, phi0 = zodipol.create_sky_coords(theta=parser["direction"][0], phi=parser["direction"][1], roll=0 * u.deg, resolution=parser["resolution"])
     callback_partial = partial(cost_callback, p=polarizance_real, eta=polarization_angle_real, mueller=mueller_truth)
-    self_calib = SelfCalibration(images_res_flat, rotation_list, zodipol, parser, theta=theta0, phi=phi0)
+    self_calib = SelfCalibration(images_res_flat, rotation_list, zodipol, parser, theta=theta0, phi=phi0, min_num_samples=5)
     init_dict = {'eta': polarization_angle_real, **initialization}
     _, _, _, cost_itr, clbk_itr = self_calib.calibrate(images_res_flat, n_itr=n_itr, callback=callback_partial,
                                                        init=init_dict, disable=disable, **kwargs)
@@ -273,11 +273,10 @@ def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, *
 
 
 def main():
-    # compare_calib_self_calib(n_rotations=30, n_itr=5)
-    # n_obs_list, cost_n_obs = main_plot_n_obs(n_itr=5, parallel=True, n_core=60)
+    compare_calib_self_calib(n_rotations=30, n_itr=5)
+    n_obs_list, cost_n_obs = main_plot_n_obs(n_itr=5, parallel=True, n_core=60)
     exp_t_list, cost_expo = main_plot_exp_time(n_rotations=30, n_itr=5, parallel=True, n_core=60)
     dir_unc_list, cost_dir_unc = main_plot_uncertainty(n_rotations=30, n_itr=5)
-    pass
 
 
 if __name__ == '__main__':
