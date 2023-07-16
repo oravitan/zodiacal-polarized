@@ -15,7 +15,7 @@ class SelfCalibration(BaseCalibration):
     """
     This class is used to self-calibrate zodipol created images.
     """
-    def __init__(self, images_res_flat, rotation_list, zodipol, parser, theta=None, phi=None):
+    def __init__(self, images_res_flat, rotation_list, zodipol, parser, theta=None, phi=None, min_num_samples=None):
         super().__init__(zodipol, parser)
 
         self.rotation_list = rotation_list
@@ -23,7 +23,7 @@ class SelfCalibration(BaseCalibration):
         self.phi = phi
         self.nobs = len(self.rotation_list)
         self.aligned_images = align_images(zodipol, parser, images_res_flat.value, rotation_list, fill_value=0)
-        self.nan_mask = self.get_nan_mask(images_res_flat)
+        self.nan_mask = self.get_nan_mask(images_res_flat, min_num_samples=min_num_samples)
         self.initialize()
 
     def calibrate(self, images_orig, n_itr=5, disable=False, callback=None, init=None, **kwargs):
@@ -66,13 +66,15 @@ class SelfCalibration(BaseCalibration):
         """
         super().estimate_birefringence(images, kernel_size=kernel_size, normalize_eigs=normalize_eigs, **kwargs)
 
-    def get_nan_mask(self, images):
+    def get_nan_mask(self, images, min_num_samples=None):
         """
         Get a mask of the images that are nan, because they're not contained within all input images.
         :param images: original images
         """
+        min_num_samples = min_num_samples or images.shape[-1]
         nan_imag = align_images(self.zodipol, self.parser, np.ones((images.shape[0], len(self.rotation_list))), self.rotation_list, fill_value=np.nan)
-        nan_ind = np.isnan(nan_imag).any(axis=-1).squeeze()
+        num_imgs = images.shape[-1] - np.isnan(nan_imag).sum(axis=-1)
+        nan_ind = (num_imgs < min_num_samples).squeeze()
         return nan_ind
 
     def get_properties(self):

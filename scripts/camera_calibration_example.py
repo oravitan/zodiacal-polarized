@@ -111,4 +111,3 @@ if __name__ == '__main__':
     visualize_calibration(n_rotations=30, n_itr=10)
     rot_intensity_mse, rot_p_mse, rot_biref_mse = plot_calibration_nbos(n_itr=30, n_rotations_list=None)
     ex_intensity_mse, ex_p_mse, ex_biref_mse = plot_calibration_exp(n_rotations=30, n_itr=30, exposure_time_list=None)
-    pass
