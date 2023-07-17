@@ -6,11 +6,31 @@ import skvideo.io
 
 from zodipol.utils.argparser import ArgParser
 from zodipol.zodipol.zodipol import Zodipol
-from zodipol.zodipol.observation import Observation
-from zodipol.visualization.skymap_plots import plot_satellite_image_indices
+
 
 logging_format = '%(asctime)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=logging_format)
+
+
+def create_images(n_polarization_ang, polarizance):
+    parser = ArgParser()
+    zodipol = Zodipol(polarizance=polarizance, fov=parser["fov"], n_polarization_ang=n_polarization_ang,
+                      parallel=parser["parallel"], n_freq=parser["n_freq"],
+                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"],
+                      imager_params=parser["imager_params"], solar_cut=10 * u.deg)
+
+    obs = zodipol.create_observation(theta=parser["direction"][0], phi=parser["direction"][1], lonlat=False,
+                                     new_isl=parser["new_isl"])
+    obs = obs.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"])
+    obs = obs.add_radial_blur(parser["motion_blur"], parser["resolution"])
+    camera_intensity = zodipol.make_camera_images(obs, n_realizations=1, add_noise=False)
+
+    biref_amount = zodipol.imager.get_birefringence_mat(np.pi / 2, 'center', flat=True, std=3, inv=True)
+    biref_angle = zodipol.imager.get_birefringence_mat(np.pi / 4, 'constant', flat=True)
+    biref_mueller = zodipol.imager.get_birefringence_mueller_matrix(biref_amount, biref_angle)
+    biref_obs = zodipol.imager.apply_birefringence(obs, biref_mueller[:, None, ...])
+    biref_intensity = zodipol.make_camera_images(biref_obs, n_realizations=1, add_noise=False)
+    return camera_intensity, biref_intensity
 
 
 def generate_video(camera_res_arr, saveto, rate=10):
@@ -34,27 +54,28 @@ def generate_video(camera_res_arr, saveto, rate=10):
 
 
 if __name__ == '__main__':
-    n_polarization_ang = 30
-    polarization_angle = np.linspace(0, np.pi, n_polarization_ang, endpoint=False)
-    polarizance = 1
-
-    # set params
-    logging.info(f'Started run.')
     parser = ArgParser()
-    zodipol = Zodipol(polarizance=polarizance, fov=parser["fov"], n_polarization_ang=n_polarization_ang, parallel=parser["parallel"], n_freq=parser["n_freq"],
-                      planetary=parser["planetary"], isl=parser["isl"], resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut=10 * u.deg)
-    A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
+    n_polarization_ang = 30
+    polarization_angles = np.linspace(0, np.pi, n_polarization_ang, endpoint=False)
+    camera_intensity, camera_biref_intensity = create_images(n_polarization_ang, 1)
+    camera_intensity_deg, _ = create_images(n_polarization_ang, 0.6)
 
-    obs = zodipol.create_observation(theta=parser["direction"][0], phi=parser["direction"][1], lonlat=False, new_isl=parser["new_isl"])
-    obs = obs.add_direction_uncertainty(parser["fov"], parser["resolution"], parser["direction_uncertainty"])
-    obs = obs.add_radial_blur(parser["motion_blur"], parser["resolution"])
+    camera_intensity_resh = camera_intensity.reshape(parser["resolution"] + [n_polarization_ang, ])
+    camera_biref_intensity_resh = camera_biref_intensity.reshape(parser["resolution"] + [n_polarization_ang, ])
+    camera_intensity_resh_deg = camera_intensity_deg.reshape(parser["resolution"] + [n_polarization_ang, ])
 
-    biref_amount = zodipol.imager.get_birefringence_mat(np.pi/2, 'center', flat=True, std=3, inv=True)
-    biref_angle = zodipol.imager.get_birefringence_mat(np.pi/4, 'constant', flat=True)
-    biref_mueller = zodipol.imager.get_birefringence_mueller_matrix(biref_amount, biref_angle)
-    biref_obs = zodipol.imager.apply_birefringence(obs, biref_mueller[:, None, ...])
+    indy, indx = 150, 100
+    plt.figure()
+    plt.plot(polarization_angles, camera_intensity_resh[indy, indx, :], lw=3, label='Polarizance = 1')
+    plt.plot(polarization_angles, camera_biref_intensity_resh[indy, indx, :], lw=3, label='Birefringence')
+    plt.plot(polarization_angles, camera_intensity_resh_deg[indy, indx, :], lw=3, label='Polarizance = 0.6')
+    plt.grid()
+    # plt.legend(fontsize=16)
+    plt.xlabel('Polarization angle', fontsize=18); plt.ylabel('Intensity', fontsize=18)
+    plt.gca().tick_params(axis='both', which='major', labelsize=16)
+    plt.tight_layout()
+    plt.savefig(f'outputs/satellite_polarizance_comp_{indy}_{indx}.svg', dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.show()
 
-    # plot unnoised camera response
-    camera_intensity = zodipol.make_camera_images(biref_obs, n_realizations=1, add_noise=False)
-    generate_video(camera_intensity, f'outputs/satellite_polarizance_{polarizance}_biref_vid.mp4', rate=10)
-    pass
+    generate_video(camera_intensity, f'outputs/satellite_polarizance_{1}_vid.mp4', rate=10)
+    generate_video(camera_biref_intensity, f'outputs/satellite_polarizance_{1}_biref_vid.mp4', rate=10)
