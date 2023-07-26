@@ -45,7 +45,7 @@ class Zodipol:
                                                               weights=self.frequency_weight, lonlat=lonlat,
                                                               polarization_angle=self.polarization_angle,
                                                               polarizance=self.polarizance, return_IQU=True)
-        isl_map = self._get_integrated_starlight_ang(theta_vec, phi_vec, new_isl=new_isl, width=self.fov / min(self.imager.resolution))
+        isl_map = self._get_integrated_starlight_ang(theta_vec, phi_vec, obs_time, new_isl=new_isl, width=self.fov / min(self.imager.resolution))
         planets_skymap = self._get_planetary_light_ang(theta_vec, phi_vec, obs_time)
         I, Q, U = binned_emission[..., 0], binned_emission[..., 1], binned_emission[..., 2]
         I += planets_skymap + isl_map
@@ -173,12 +173,12 @@ class Zodipol:
         # isl_map = np.stack([isl_map] * len(self.polarization_angle), axis=-1)
         return isl_map
 
-    def _get_integrated_starlight_ang(self, theta: u.Quantity, phi: u.Quantity, new_isl=False, width=None):
+    def _get_integrated_starlight_ang(self, theta: u.Quantity, phi: u.Quantity, obs_time, new_isl=False, width=None):
         if self.isl is None and not new_isl:
             return 0
         elif new_isl:
-            isf = IntegratedStarlightFactory()
-            isl = isf.build_dirmap(theta, phi, self.frequency.to('Hz').value, width, parallel=False)
+            isf = IntegratedStarlightFactory(obs_time)
+            isl = isf.build_dirmap(theta.to('deg'), phi.to('deg'), self.frequency.to('Hz').value, width, parallel=True)
             isl_map = isl.isl_map
         else:
             isl = self.isl

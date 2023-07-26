@@ -167,8 +167,8 @@ def main_plot_n_obs(n_itr=10, n_rotations_list=None, n_rpt=15, parallel=False, n
     else:
         results = []
         for n_rotations in n_rotations_list_:
-            results.append(_run_main_plot_n_obs((n_rotations, n_itr, kwargs)))
-    res_cost_arr = np.array(results).reshape((10, n_rpt, 7))
+            results.append(_run_main_plot_n_obs((n_rotations, n_itr, dict(kernel_size=5))))
+    res_cost_arr = np.array(results).reshape((len(n_rotations_list), n_rpt, 7))
 
     rot_p_mse, p_err = np.mean(res_cost_arr[..., 1], axis=1), np.std(res_cost_arr[..., 1], axis=1)
     rot_biref_mse, biref_err = np.mean(res_cost_arr[..., 2], axis=1), np.std(res_cost_arr[..., 2], axis=1)
@@ -190,7 +190,7 @@ def _run_main_plot_n_obs(inputs):
     A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
     cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
                                                                        disable=True, normalize_eigs=True,
-                                                                       kernel_size=5, **kwargs)
+                                                                       **kwargs)
     mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
     return (cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1]
 
@@ -207,7 +207,7 @@ def main_plot_exp_time(n_rotations=30, n_rpt=15, n_itr=10, exposure_time_list=No
         results = []
         for exposure_time in exposure_time_list_:
             results.append(_run_main_plot_exp_time((exposure_time, n_rotations, n_itr, kwargs)))
-    res_cost_arr = np.array(results).reshape((10, n_rpt, 7))
+    res_cost_arr = np.array(results).reshape((len(exposure_time_list), n_rpt, 7))
 
     ex_p_mse, p_err = np.mean(res_cost_arr[..., 1], axis=1), np.std(res_cost_arr[..., 1], axis=1)
     ex_biref_mse, biref_err = np.mean(res_cost_arr[..., 2], axis=1), np.std(res_cost_arr[..., 2], axis=1)
@@ -237,39 +237,52 @@ def _run_main_plot_exp_time(inputs):
     return (cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1]
 
 
-def main_plot_uncertainty(n_rotations=10, n_itr=10, direction_error_list=None, **kwargs):
+def main_plot_uncertainty(n_rotations=10, n_itr=10, n_rpt=7, direction_error_list=None, parallel=False, n_core=4, **kwargs):
     # In the direction estimation study, exposure time need to be long enough to get a significant signal, but we do not
     # omit the stars pixels, so exposure time needs to be short enough to avoid full-well.
     if direction_error_list is None:
         direction_error_list = np.logspace(np.log10(0.0001), np.log10(0.2), 10)
-    parser = ArgParser()
-    zodipol = Zodipol(polarizance=parser["polarizance"], fov=parser["fov"],
-                      n_polarization_ang=parser["n_polarization_ang"], parallel=parser["parallel"],
-                      n_freq=parser["n_freq"], planetary=parser["planetary"], isl=parser["isl"],
-                      resolution=parser["resolution"], imager_params=parser["imager_params"], solar_cut= 5 * u.deg)
+    direction_error_list_ = np.repeat(direction_error_list, n_rpt)
+    direction_err_kw = [{"direction_uncertainty": direction_error * u.deg} for direction_error in direction_error_list_]
 
-    # now estimate how well we calibration based on direction uncertainty
-    A_gamma = zodipol.imager.get_A_gamma(zodipol.frequency, zodipol.get_imager_response())
-    res_cost = []
-    for direction_error in tqdm(direction_error_list):
-        dir_err = []
-        for ii in range(7):
-            cost_itr, est_values, true_values, clbk_itr = run_self_calibration(n_rotations, n_itr, zodipol, parser,
-                                                                               disable=True, normalize_eigs=True,
-                                                                               kernel_size=5,
-                                                                               direction_uncertainty=direction_error * u.deg,
-                                                                               remove_stars=False,  # necesary for higher direction uncertainty
-                                                                               **kwargs)
-            mean_num_electrons = np.mean((true_values["images"] / A_gamma).to('').value)
-            dir_err.append((cost_itr[-1] / mean_num_electrons,) + clbk_itr[-1])
-        res_cost.append(dir_err)
-    res_cost_arr = np.array(res_cost)
+    if parallel:
+        with mp.Pool(n_core) as p:
+            results = p.map(_run_main_plot_n_obs, zip(repeat(n_rotations), repeat(n_itr), direction_err_kw))
+    else:
+        results = []
+        for kw in direction_err_kw:
+            results.append(_run_main_plot_n_obs((n_rotations, n_itr, kw)))
+    res_cost_arr = np.array(results).reshape((len(direction_error_list), n_rpt, 7))
+
     dir_p_mse, p_err = np.mean(res_cost_arr[..., 1], axis=1), np.std(res_cost_arr[..., 1], axis=1)
     dir_biref_mse, biref_err = np.mean(res_cost_arr[..., 2], axis=1), np.std(res_cost_arr[..., 2], axis=1)
 
     plot_res_comp_plot(direction_error_list, dir_p_mse, dir_biref_mse, saveto=f"{outputs_dir}/calib_mse_direction_error.pdf",
                        xlabel="Direction Error (deg)", ylim1=(0, None), ylim2=(0, None), p_mse_err=p_err, biref_mse_err=biref_err)
-    return direction_error_list, res_cost
+    return direction_error_list, res_cost_arr
+
+
+def biref_smoothing_study(n_rotations=10, n_itr=10, n_rpt=7, smoothing_list=None, parallel=False, n_core=4, **kwargs):
+    if smoothing_list is None:
+        smoothing_list = [1, 3, 5, 7, 9]
+    smoothing_list_ = np.repeat(smoothing_list, n_rpt)
+    biref_smoothing = [dict(kernel_size=smoothing, **kwargs) for smoothing in smoothing_list_]
+
+    if parallel:
+        with mp.Pool(n_core) as p:
+            results = p.map(_run_main_plot_n_obs, zip(repeat(n_rotations), repeat(n_itr), biref_smoothing))
+    else:
+        results = []
+        for kw in biref_smoothing:
+            results.append(_run_main_plot_n_obs((n_rotations, n_itr, kw)))
+    res_cost_arr = np.array(results).reshape((len(smoothing_list), n_rpt, 7))
+
+    rot_p_mse, p_err = np.mean(res_cost_arr[..., 1], axis=1), np.std(res_cost_arr[..., 1], axis=1)
+    rot_biref_mse, biref_err = np.mean(res_cost_arr[..., 2], axis=1), np.std(res_cost_arr[..., 2], axis=1)
+    print('Kernel size MSE for P: ', rot_p_mse)
+    print('Kernel size MSE for Biref: ', rot_biref_mse)
+    return smoothing_list, res_cost_arr
+
 
 
 def main():
