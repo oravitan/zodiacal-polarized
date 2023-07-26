@@ -132,9 +132,9 @@ class Observation:
             raise ValueError('Circular motion blur must be positive')
         elif direction_uncertainty.value == 0:
             return self.copy()
-        pixel_size = fov / resolution
+        pixel_size = fov / min(resolution)
         pixels_uncertainty = (direction_uncertainty / pixel_size).value
-        pixels_uncertainty = np.concatenate((pixels_uncertainty, [1]))
+        pixels_uncertainty = np.array((pixels_uncertainty, pixels_uncertainty, 1))
         prev_shape = self.I.shape
         new_shape = resolution + list(self.I.shape[1:])
         I_g, Q_g, U_g = [gaussian(x.reshape(new_shape), pixels_uncertainty).reshape(prev_shape) for x in (self.I, self.Q, self.U)]
