@@ -226,7 +226,7 @@ class IntegratedStarlightFactory:
 
     def build_dirmap(self, lon, lat, frequency: float, width: u.Quantity = None,
                      parallel: bool = True, request_size=1000):
-        logging.info(f'Building ISL skymap for {len(self.pixels)} pixels.')
+        logging.info(f'Building ISL skymap for {len(lon)} pixels.')
         array_split = np.array_split(np.stack([lon, lat], axis=-1), len(lon) // request_size)
         if parallel:
             n_cpu = cpu_count() - 1
@@ -234,7 +234,7 @@ class IntegratedStarlightFactory:
             with Pool(30) as p:
                 flux_list = p.starmap(self.estimate_direction_flux_parallel, zip(array_split, range(len(array_split)),
                                                                                  repeat(frequency), repeat(width)))
-                flux = np.concatenate(flux_list)
+                flux = np.concatenate(flux_list) * flux_list[0][0].unit
         else:
             logging.info(f'Using {len(array_split)} requests.')
             flux = [self.estimate_direction_flux_parallel(lonlat, id, frequency, width) for id,lonlat in enumerate(array_split)]
@@ -246,7 +246,7 @@ class IntegratedStarlightFactory:
         query_res = self.query_direction(lon, lat, width, request_id=request_id)
         res = []
         for ii in tqdm(range(1, len(lon)+1), desc=f"Request {request_id}"):
-            res.append(self.estimate_direction_flux(query_res[query_res._q == ii], frequency))
+            res.append(self.estimate_direction_flux(query_res[query_res._q == ii], frequency, width))
         return res
 
     def process_query(self, result):
@@ -269,7 +269,7 @@ class IntegratedStarlightFactory:
         """
         return hp.pix2ang(self.nside, self.pixels, lonlat=True)
 
-    def estimate_direction_flux(self, query_result, frequency, resample_size=10):
+    def estimate_direction_flux(self, query_result, frequency, width, resample_size=100):
         """
         Estimate the flux in a given direction
         :param lon: galactic longitude
@@ -298,7 +298,7 @@ class IntegratedStarlightFactory:
         temperature, flux_factor = self._estimate_temperatures(flux_sample, self.freq)
         flux_estimation = boltzman(flux_factor[:, None], temperature[:, None], frequency)
         total_freq_flux = total_flux_factor * flux_estimation.sum(axis=0)
-        return total_freq_flux * u.Unit('nW / m^2 um') / self.focal_param / self.pixel_size ** 2
+        return total_freq_flux * u.Unit('nW / m^2 um') / self.focal_param / width.to('deg').value ** 2
 
     def mag2flux(self, mag, band):
         """
