@@ -215,7 +215,9 @@ class BaseCalibration:
         :return: The normalized birefringence matrix.
         """
         W, V = np.linalg.eig(biref_elems)
-        biref_eigs = W / W.max(axis=1, keepdims=True)
+        max_abs_indices = np.argmax(np.abs(W), axis=-1)
+        max_abs_eigs = np.take_along_axis(W, max_abs_indices[..., None], axis=-1)
+        biref_eigs = W / max_abs_eigs
         biref_res = np.einsum('...ij,...j,...kj->...ik', V, biref_eigs, V)
 
         biref_res = np.nan_to_num(biref_res, nan=0)
